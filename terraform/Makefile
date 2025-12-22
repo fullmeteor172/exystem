@@ -1,7 +1,7 @@
 .PHONY: help init plan apply destroy validate format clean kubeconfig
 
 # Variables
-AWS_PROFILE ?= morpheus-terraform-admin
+AWS_PROFILE ?= morpheus
 CLUSTER_NAME ?= exystem-dev
 
 help: ## Show this help message

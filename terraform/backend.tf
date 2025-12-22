@@ -6,7 +6,7 @@ terraform {
     dynamodb_table = "terraform-locks"
     encrypt        = true
 
-    # Assuming role for terraform operations
-    role_arn = "arn:aws:iam::143495498599:role/terraform-admin"
+    # Role assumption is handled by AWS profile configuration
+    # Ensure AWS_PROFILE is set to 'morpheus' which assumes terraform-admin role
   }
 }
