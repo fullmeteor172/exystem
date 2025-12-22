@@ -52,7 +52,7 @@ resource "helm_release" "karpenter" {
   namespace  = var.namespace
   repository = "oci://public.ecr.aws/karpenter"
   chart      = "karpenter"
-  version    = "1.1.1"
+  version    = "1.6.0"
 
   create_namespace = true
 
@@ -127,47 +127,47 @@ resource "kubectl_manifest" "karpenter_node_class" {
       name = "default"
     }
     spec = {
-      amiFamily = "AL2"
-      role      = var.node_iam_role_arn
-      subnetSelectorTerms = [
-        for subnet_id in var.subnet_ids : {
-          id = subnet_id
-        }
-      ]
-      securityGroupSelectorTerms = [
-        for sg_id in var.security_group_ids : {
-          id = sg_id
-        }
-      ]
-      amiSelectorTerms = [
-        {
-          alias = "al2@latest"
-        }
-      ]
-      tags = merge(
-        var.tags,
-        {
-          Name                     = "${var.cluster_name}-karpenter-node"
-          "karpenter.sh/discovery" = var.cluster_name
-        }
-      )
-      blockDeviceMappings = [
-        {
-          deviceName = "/dev/xvda"
-          ebs = {
-            volumeSize          = "100Gi"
-            volumeType          = "gp3"
-            deleteOnTermination = true
-            encrypted           = true
-          }
-        }
-      ]
-      userData = base64encode(<<-EOF
-        #!/bin/bash
-        /etc/eks/bootstrap.sh ${var.cluster_name}
-      EOF
-      )
+  amiFamily = "AL2023"
+  role      = var.node_iam_role_arn
+
+  subnetSelectorTerms = [
+    for subnet_id in var.subnet_ids : {
+      id = subnet_id
     }
+  ]
+
+  securityGroupSelectorTerms = [
+    for sg_id in var.security_group_ids : {
+      id = sg_id
+    }
+  ]
+
+  amiSelectorTerms = [
+    {
+      alias = "al2023@latest"
+    }
+  ]
+
+  tags = merge(
+    var.tags,
+    {
+      Name                     = "${var.cluster_name}-karpenter-node"
+      "karpenter.sh/discovery" = var.cluster_name
+    }
+  )
+
+  blockDeviceMappings = [
+    {
+      deviceName = "/dev/xvda"
+      ebs = {
+        volumeSize          = "100Gi"
+        volumeType          = "gp3"
+        deleteOnTermination = true
+        encrypted           = true
+      }
+    }
+  ]
+  }
   })
 
   depends_on = [helm_release.karpenter]
@@ -234,17 +234,16 @@ resource "kubectl_manifest" "karpenter_node_pool" {
         consolidateAfter    = "30s"  # Quickly consolidate underutilized nodes
 
         # Disruption budgets to control node replacement rate
-        budgets = [
-          {
-            nodes    = "10%"
-            schedule = "* * * * *"  # Always allow 10% disruption
-          },
-          {
-            nodes    = "0"
-            schedule = "0 2 * * *"  # No disruption during maintenance window
-            duration = "1h"
-          }
-        ]
+budgets = [
+  {
+    nodes = "10%"
+  },
+  {
+    nodes    = "0"
+    schedule = "0 2 * * *"
+    duration = "1h"
+  }
+]
       }
     }
   })

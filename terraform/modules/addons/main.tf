@@ -215,7 +215,6 @@ resource "helm_release" "cert_manager" {
           namespace = var.cert_manager_namespace
         }
       }
-      installCRDs = true
       resources = {
         requests = {
           cpu    = "10m"
