@@ -67,13 +67,13 @@ resource "aws_elasticache_parameter_group" "main" {
 ################################################################################
 
 resource "aws_elasticache_replication_group" "main" {
-  replication_group_id       = var.cluster_id
-  replication_group_description = "Redis cluster for ${var.cluster_id}"
+  replication_group_id = var.cluster_id
+  description          = "Redis cluster for ${var.cluster_id}"
 
   engine               = "redis"
   engine_version       = var.engine_version
   node_type            = var.node_type
-  number_cache_clusters = var.num_cache_nodes
+  num_cache_clusters   = var.num_cache_nodes
   parameter_group_name = aws_elasticache_parameter_group.main.name
   port                 = 6379
 
@@ -85,13 +85,10 @@ resource "aws_elasticache_replication_group" "main" {
 
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  auth_token_enabled         = false
 
   snapshot_retention_limit = 5
   snapshot_window          = "03:00-05:00"
   maintenance_window       = "mon:05:00-mon:07:00"
-
-  notification_topic_arn = null
 
   auto_minor_version_upgrade = true
   apply_immediately          = false
