@@ -258,7 +258,7 @@ resource "helm_release" "cert_manager" {
 ################################################################################
 
 resource "kubernetes_secret" "cloudflare_api_token" {
-  count = var.cloudflare_api_token != "" ? 1 : 0
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   metadata {
     name      = "cloudflare-api-token"
@@ -279,7 +279,7 @@ resource "kubernetes_secret" "cloudflare_api_token" {
 ################################################################################
 
 resource "kubectl_manifest" "letsencrypt_issuer" {
-  count = var.cloudflare_api_token != "" ? 1 : 0
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   yaml_body = yamlencode({
     apiVersion = "cert-manager.io/v1"
@@ -322,7 +322,7 @@ resource "kubectl_manifest" "letsencrypt_issuer" {
 ################################################################################
 
 resource "kubectl_manifest" "wildcard_certificate" {
-  count = var.cloudflare_api_token != "" ? 1 : 0
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   yaml_body = yamlencode({
     apiVersion = "cert-manager.io/v1"
@@ -355,7 +355,7 @@ resource "kubectl_manifest" "wildcard_certificate" {
 ################################################################################
 
 resource "kubectl_manifest" "traefik_default_tls" {
-  count = var.cloudflare_api_token != "" ? 1 : 0
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   yaml_body = yamlencode({
     apiVersion = "traefik.io/v1alpha1"

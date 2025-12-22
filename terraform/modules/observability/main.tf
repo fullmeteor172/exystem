@@ -244,6 +244,10 @@ resource "helm_release" "loki" {
   chart      = "loki"
   version    = "6.22.0"
 
+  timeout       = 600
+  wait          = true
+  wait_for_jobs = true
+
   values = [
     yamlencode({
       deploymentMode = "SingleBinary"
@@ -279,6 +283,13 @@ resource "helm_release" "loki" {
         }
         limits_config = {
           retention_period = "${var.loki_retention_days}d"
+        }
+        # Add storage configuration for filesystem cache
+        storageConfig = {
+          filesystem = {
+            chunks_directory = "/var/loki/chunks"
+            rules_directory  = "/var/loki/rules"
+          }
         }
       }
       singleBinary = {
@@ -321,6 +332,15 @@ resource "helm_release" "loki" {
       }
       test = {
         enabled = false
+      }
+      # Enable monitoring for debugging
+      monitoring = {
+        serviceMonitor = {
+          enabled = false
+        }
+        selfMonitoring = {
+          enabled = false
+        }
       }
     })
   ]
