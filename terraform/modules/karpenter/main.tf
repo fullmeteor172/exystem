@@ -80,7 +80,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
       name = "default"
     }
     spec = {
-      amiFamily = "AL2023"
+      amiFamily = "AL2"
       role      = var.node_iam_role_arn
       subnetSelectorTerms = [
         for subnet_id in var.subnet_ids : {
@@ -94,7 +94,7 @@ resource "kubectl_manifest" "karpenter_node_class" {
       ]
       amiSelectorTerms = [
         {
-          alias = "al2023@latest"
+          alias = "al2@latest"
         }
       ]
       tags = merge(
@@ -221,10 +221,7 @@ resource "aws_launch_template" "karpenter_initial" {
   user_data = base64encode(<<-EOF
     #!/bin/bash
     set -ex
-    # Bootstrap script for Amazon Linux 2023
-    /usr/bin/eks-bootstrap.sh ${var.cluster_name} \
-      --apiserver-endpoint ${var.cluster_endpoint} \
-      --b64-cluster-ca $(echo ${var.cluster_ca_data} | base64 -d | base64 -w0)
+    /etc/eks/bootstrap.sh ${var.cluster_name}
   EOF
   )
 
@@ -251,7 +248,7 @@ resource "aws_launch_template" "karpenter_initial" {
 }
 
 data "aws_ssm_parameter" "eks_ami" {
-  name = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2023/x86_64/standard/recommended/image_id"
+  name = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2/recommended/image_id"
 }
 
 resource "aws_autoscaling_group" "karpenter_initial" {
