@@ -43,14 +43,22 @@ echo "Waiting 60 seconds for AWS resources to be cleaned up..."
 sleep 60
 
 echo ""
-echo "Step 2: Emptying S3 buckets..."
+echo "Step 2: Emptying S3 buckets (excluding Terraform state)..."
 echo "=============================================="
 
-# Empty Loki logs bucket
+# Explicitly preserve Terraform backend resources
+echo "⚠️  Preserving Terraform backend resources:"
+echo "   - S3 Bucket: tf-state-meteor"
+echo "   - DynamoDB Table: terraform-locks"
+echo ""
+
+# Empty Loki logs bucket only
 LOKI_BUCKET="${CLUSTER_NAME}-loki-logs"
 if aws s3 ls "s3://${LOKI_BUCKET}" 2>/dev/null; then
     echo "Emptying ${LOKI_BUCKET}..."
     aws s3 rm "s3://${LOKI_BUCKET}" --recursive || true
+else
+    echo "Loki bucket ${LOKI_BUCKET} not found or already deleted"
 fi
 
 echo ""
@@ -121,8 +129,19 @@ fi
 echo ""
 echo "✅ Cleanup complete!"
 echo ""
+echo "📋 Summary:"
+echo "✓ All Kubernetes resources cleaned up"
+echo "✓ All infrastructure resources destroyed"
+echo "✓ S3 buckets emptied (except Terraform state)"
+echo ""
+echo "🔒 Preserved Resources (DO NOT DELETE):"
+echo "   - S3 Bucket: tf-state-meteor"
+echo "   - DynamoDB Table: terraform-locks"
+echo ""
 echo "📋 Next steps:"
-echo "1. Check AWS Console for any remaining resources"
-echo "2. Verify no unexpected charges in AWS Cost Explorer"
-echo "3. The S3 state bucket (tf-state-meteor) was NOT deleted"
+echo "1. Run 'terraform init' to reinitialize"
+echo "2. Run 'terraform plan' to preview changes"
+echo "3. Run 'terraform apply' to recreate infrastructure"
+echo "4. Check AWS Console for any remaining orphaned resources"
+echo "5. Verify no unexpected charges in AWS Cost Explorer"
 echo ""
