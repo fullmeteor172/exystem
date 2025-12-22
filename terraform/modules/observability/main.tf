@@ -135,7 +135,7 @@ resource "helm_release" "kube_prometheus_stack" {
           storageSpec = {
             volumeClaimTemplate = {
               spec = {
-                storageClassName = "gp3"
+                storageClassName = "gp3-immediate"  # Use immediate binding
                 accessModes      = ["ReadWriteOnce"]
                 resources = {
                   requests = {
@@ -147,12 +147,12 @@ resource "helm_release" "kube_prometheus_stack" {
           }
           resources = {
             requests = {
-              cpu    = "500m"
-              memory = "2Gi"
+              cpu    = "250m"
+              memory = "1Gi"
             }
             limits = {
               cpu    = "2000m"
-              memory = "4Gi"
+              memory = "3Gi"
             }
           }
           # Scrape pods with prometheus.io/scrape annotation
@@ -215,7 +215,7 @@ resource "helm_release" "kube_prometheus_stack" {
           storage = {
             volumeClaimTemplate = {
               spec = {
-                storageClassName = "gp3"
+                storageClassName = "gp3-immediate"  # Use immediate binding
                 accessModes      = ["ReadWriteOnce"]
                 resources = {
                   requests = {
@@ -296,17 +296,17 @@ resource "helm_release" "loki" {
         replicas = 1
         persistence = {
           enabled      = true
-          storageClass = "gp3"
+          storageClass = "gp3-immediate"  # Use immediate binding to avoid scheduling conflicts
           size         = "10Gi"
         }
         resources = {
           requests = {
-            cpu    = "100m"
-            memory = "256Mi"
+            cpu    = "200m"
+            memory = "512Mi"
           }
           limits = {
             cpu    = "1000m"
-            memory = "1Gi"
+            memory = "2Gi"
           }
         }
       }
@@ -434,7 +434,7 @@ resource "helm_release" "grafana" {
       adminPassword = var.grafana_admin_password != "" ? var.grafana_admin_password : random_password.grafana_admin[0].result
       persistence = {
         enabled      = true
-        storageClassName = "gp3"
+        storageClassName = "gp3-immediate"  # Use immediate binding
         size         = "10Gi"
       }
       datasources = {

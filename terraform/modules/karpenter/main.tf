@@ -12,15 +12,15 @@ resource "aws_eks_node_group" "karpenter_initial" {
 
   scaling_config {
     desired_size = 2
-    max_size     = 3
-    min_size     = 1  # Keep at least 1 node always running
+    max_size     = 4
+    min_size     = 2  # Keep at least 2 nodes for HA
   }
 
   update_config {
     max_unavailable = 1
   }
 
-  instance_types = ["t3.medium"]
+  instance_types = ["t3.large"]  # 8GB RAM for better capacity
   capacity_type  = "ON_DEMAND"  # Use on-demand for reliability of Karpenter itself
 
   labels = {
