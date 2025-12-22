@@ -188,6 +188,7 @@ module "addons" {
   cert_manager_namespace  = var.cert_manager_namespace
 
   cloudflare_api_token    = var.cloudflare_api_token
+  cloudflare_zone_id      = var.cloudflare_zone_id
   cloudflare_email        = var.cloudflare_email
   acme_email              = var.acme_email
   acme_server             = var.acme_server

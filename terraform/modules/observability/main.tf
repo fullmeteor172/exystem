@@ -299,6 +299,16 @@ resource "helm_release" "loki" {
           }
         }
       }
+      # Explicitly disable simple scalable components when using SingleBinary mode
+      read = {
+        replicas = 0
+      }
+      write = {
+        replicas = 0
+      }
+      backend = {
+        replicas = 0
+      }
       serviceAccount = {
         create = true
         name   = "loki"

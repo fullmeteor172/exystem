@@ -37,6 +37,12 @@ variable "cloudflare_api_token" {
   default     = ""
 }
 
+variable "cloudflare_zone_id" {
+  description = "Cloudflare Zone ID for DNS01 challenges"
+  type        = string
+  default     = ""
+}
+
 variable "cloudflare_email" {
   description = "Cloudflare email"
   type        = string

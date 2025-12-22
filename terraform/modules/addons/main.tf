@@ -302,6 +302,7 @@ resource "kubectl_manifest" "letsencrypt_issuer" {
                   name = "cloudflare-api-token"
                   key  = "api-token"
                 }
+                zoneID = var.cloudflare_zone_id
               }
             }
           }
