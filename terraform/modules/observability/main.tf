@@ -43,6 +43,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "loki" {
     id     = "delete-old-logs"
     status = "Enabled"
 
+    filter {}  # Apply to all objects in the bucket
+
     expiration {
       days = var.loki_retention_days
     }
