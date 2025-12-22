@@ -14,6 +14,12 @@ resource "aws_eks_cluster" "main" {
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
+  # Enable new authentication mode for access entries
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = var.enable_cluster_creator_admin_permissions
+  }
+
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   # Ensure that IAM Role permissions are created before and deleted after EKS Cluster
@@ -176,35 +182,8 @@ resource "aws_iam_openid_connect_provider" "cluster" {
   tags = var.tags
 }
 
-################################################################################
-# EKS Access Entry (for cluster creator)
-################################################################################
-
-data "aws_caller_identity" "current" {}
-
-resource "aws_eks_access_entry" "cluster_creator" {
-  count = var.enable_cluster_creator_admin_permissions ? 1 : 0
-
-  cluster_name  = aws_eks_cluster.main.name
-  principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/terraform-admin"
-  type          = "STANDARD"
-
-  depends_on = [aws_eks_cluster.main]
-}
-
-resource "aws_eks_access_policy_association" "cluster_creator" {
-  count = var.enable_cluster_creator_admin_permissions ? 1 : 0
-
-  cluster_name  = aws_eks_cluster.main.name
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/terraform-admin"
-
-  access_scope {
-    type = "cluster"
-  }
-
-  depends_on = [aws_eks_access_entry.cluster_creator]
-}
+# Note: Cluster creator admin permissions are now handled by
+# access_config.bootstrap_cluster_creator_admin_permissions in the cluster resource
 
 ################################################################################
 # Karpenter IAM Role for Service Account (IRSA)

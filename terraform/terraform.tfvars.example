@@ -105,7 +105,7 @@ prometheus_storage_size = "50Gi"
 # Set to true to create a PostgreSQL database
 enable_rds = false
 
-rds_engine_version   = "16.3"
+rds_engine_version   = "16.4"
 rds_instance_class   = "db.t4g.micro"   # Use larger instances for production
 rds_allocated_storage = 20
 
