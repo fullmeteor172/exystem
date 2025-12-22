@@ -23,6 +23,53 @@ data "aws_eks_cluster" "main" {
 }
 
 ################################################################################
+# Storage Classes
+################################################################################
+
+# GP3 Storage Class (default)
+resource "kubernetes_storage_class" "gp3" {
+  metadata {
+    name = "gp3"
+    annotations = {
+      "storageclass.kubernetes.io/is-default-class" = "true"
+    }
+  }
+
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
+  volume_binding_mode    = "WaitForFirstConsumer"
+  allow_volume_expansion = true
+
+  parameters = {
+    type      = "gp3"
+    encrypted = "true"
+    fsType    = "ext4"
+  }
+
+  depends_on = [aws_eks_addon.ebs_csi_driver]
+}
+
+# GP3 with immediate binding (for StatefulSets that need it)
+resource "kubernetes_storage_class" "gp3_immediate" {
+  metadata {
+    name = "gp3-immediate"
+  }
+
+  storage_provisioner    = "ebs.csi.aws.com"
+  reclaim_policy         = "Delete"
+  volume_binding_mode    = "Immediate"
+  allow_volume_expansion = true
+
+  parameters = {
+    type      = "gp3"
+    encrypted = "true"
+    fsType    = "ext4"
+  }
+
+  depends_on = [aws_eks_addon.ebs_csi_driver]
+}
+
+################################################################################
 # EFS CSI Driver (Optional)
 ################################################################################
 

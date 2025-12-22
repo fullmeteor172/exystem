@@ -127,47 +127,48 @@ resource "kubectl_manifest" "karpenter_node_class" {
       name = "default"
     }
     spec = {
-  amiFamily = "AL2023"
-  role      = var.node_iam_role_arn
+      amiFamily = "AL2023"
+      # Use instance profile name, not role ARN
+      role = var.instance_profile_name
 
-  subnetSelectorTerms = [
-    for subnet_id in var.subnet_ids : {
-      id = subnet_id
-    }
-  ]
+      subnetSelectorTerms = [
+        for subnet_id in var.subnet_ids : {
+          id = subnet_id
+        }
+      ]
 
-  securityGroupSelectorTerms = [
-    for sg_id in var.security_group_ids : {
-      id = sg_id
-    }
-  ]
+      securityGroupSelectorTerms = [
+        for sg_id in var.security_group_ids : {
+          id = sg_id
+        }
+      ]
 
-  amiSelectorTerms = [
-    {
-      alias = "al2023@latest"
-    }
-  ]
+      amiSelectorTerms = [
+        {
+          alias = "al2023@latest"
+        }
+      ]
 
-  tags = merge(
-    var.tags,
-    {
-      Name                     = "${var.cluster_name}-karpenter-node"
-      "karpenter.sh/discovery" = var.cluster_name
-    }
-  )
+      tags = merge(
+        var.tags,
+        {
+          Name                     = "${var.cluster_name}-karpenter-node"
+          "karpenter.sh/discovery" = var.cluster_name
+        }
+      )
 
-  blockDeviceMappings = [
-    {
-      deviceName = "/dev/xvda"
-      ebs = {
-        volumeSize          = "100Gi"
-        volumeType          = "gp3"
-        deleteOnTermination = true
-        encrypted           = true
-      }
+      blockDeviceMappings = [
+        {
+          deviceName = "/dev/xvda"
+          ebs = {
+            volumeSize          = "100Gi"
+            volumeType          = "gp3"
+            deleteOnTermination = true
+            encrypted           = true
+          }
+        }
+      ]
     }
-  ]
-  }
   })
 
   depends_on = [helm_release.karpenter]
