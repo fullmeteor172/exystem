@@ -1,4 +1,49 @@
 ################################################################################
+# EKS Managed Node Group for Karpenter
+# This ensures reliable initial nodes for Karpenter to run on
+################################################################################
+
+resource "aws_eks_node_group" "karpenter_initial" {
+  cluster_name    = var.cluster_name
+  node_group_name = "${var.cluster_name}-karpenter-initial"
+  node_role_arn   = var.node_iam_role_arn
+  subnet_ids      = var.subnet_ids
+  version         = var.cluster_version
+
+  scaling_config {
+    desired_size = 2
+    max_size     = 3
+    min_size     = 1  # Keep at least 1 node always running
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  instance_types = ["t3.medium"]
+  capacity_type  = "ON_DEMAND"  # Use on-demand for reliability of Karpenter itself
+
+  labels = {
+    "node.kubernetes.io/lifecycle" = "on-demand"
+    "node.kubernetes.io/nodegroup" = "karpenter-initial"
+  }
+
+  tags = merge(
+    var.tags,
+    {
+      Name                     = "${var.cluster_name}-karpenter-initial"
+      "karpenter.sh/discovery" = var.cluster_name
+    }
+  )
+
+  # Ensure proper lifecycle management
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes        = [scaling_config[0].desired_size]
+  }
+}
+
+################################################################################
 # Karpenter Helm Release
 ################################################################################
 
@@ -12,23 +57,41 @@ resource "helm_release" "karpenter" {
   create_namespace = true
 
   # Increase timeout for initial installation
-  timeout = 600  # 10 minutes
-  wait    = true
+  timeout       = 600  # 10 minutes
+  wait          = true
   wait_for_jobs = true
 
-  # Allow waiting for the initial node group to be ready
-  depends_on = [aws_autoscaling_group.karpenter_initial]
+  # Wait for managed node group to be ready
+  depends_on = [aws_eks_node_group.karpenter_initial]
 
   values = [
     yamlencode({
       settings = {
-        clusterName     = var.cluster_name
-        clusterEndpoint = var.cluster_endpoint
+        clusterName       = var.cluster_name
+        clusterEndpoint   = var.cluster_endpoint
         interruptionQueue = var.queue_name
       }
       serviceAccount = {
         annotations = {
           "eks.amazonaws.com/role-arn" = var.irsa_arn
+        }
+      }
+      # Run Karpenter on the managed node group
+      affinity = {
+        nodeAffinity = {
+          requiredDuringSchedulingIgnoredDuringExecution = {
+            nodeSelectorTerms = [
+              {
+                matchExpressions = [
+                  {
+                    key      = "node.kubernetes.io/nodegroup"
+                    operator = "In"
+                    values   = ["karpenter-initial"]
+                  }
+                ]
+              }
+            ]
+          }
         }
       }
       tolerations = [
@@ -37,22 +100,6 @@ resource "helm_release" "karpenter" {
           operator = "Exists"
         }
       ]
-      affinity = {
-        nodeAffinity = {
-          requiredDuringSchedulingIgnoredDuringExecution = {
-            nodeSelectorTerms = [
-              {
-                matchExpressions = [
-                  {
-                    key      = "karpenter.sh/nodepool"
-                    operator = "DoesNotExist"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
       replicas = 2
       resources = {
         requests = {
@@ -69,7 +116,7 @@ resource "helm_release" "karpenter" {
 }
 
 ################################################################################
-# Karpenter NodePool
+# Karpenter EC2NodeClass
 ################################################################################
 
 resource "kubectl_manifest" "karpenter_node_class" {
@@ -100,8 +147,8 @@ resource "kubectl_manifest" "karpenter_node_class" {
       tags = merge(
         var.tags,
         {
-          Name                                   = "${var.cluster_name}-karpenter-node"
-          "karpenter.sh/discovery"               = var.cluster_name
+          Name                     = "${var.cluster_name}-karpenter-node"
+          "karpenter.sh/discovery" = var.cluster_name
         }
       )
       blockDeviceMappings = [
@@ -125,6 +172,10 @@ resource "kubectl_manifest" "karpenter_node_class" {
 
   depends_on = [helm_release.karpenter]
 }
+
+################################################################################
+# Karpenter NodePool with Smart Consolidation
+################################################################################
 
 resource "kubectl_manifest" "karpenter_node_pool" {
   yaml_body = yamlencode({
@@ -168,19 +219,30 @@ resource "kubectl_manifest" "karpenter_node_pool" {
               values   = ["linux"]
             }
           ]
+          # No taints - allow all pods
           taints = []
         }
       }
+      # Resource limits to prevent runaway scaling
       limits = {
         cpu    = "1000"
         memory = "1000Gi"
       }
+      # Smart consolidation settings
       disruption = {
         consolidationPolicy = "WhenEmptyOrUnderutilized"
-        consolidateAfter    = "1m"
+        consolidateAfter    = "30s"  # Quickly consolidate underutilized nodes
+
+        # Disruption budgets to control node replacement rate
         budgets = [
           {
-            nodes = "10%"
+            nodes    = "10%"
+            schedule = "* * * * *"  # Always allow 10% disruption
+          },
+          {
+            nodes    = "0"
+            schedule = "0 2 * * *"  # No disruption during maintenance window
+            duration = "1h"
           }
         ]
       }
@@ -188,95 +250,4 @@ resource "kubectl_manifest" "karpenter_node_pool" {
   })
 
   depends_on = [kubectl_manifest.karpenter_node_class]
-}
-
-################################################################################
-# Initial Karpenter Managed Node (to run Karpenter itself)
-################################################################################
-
-resource "aws_launch_template" "karpenter_initial" {
-  name_prefix            = "${var.cluster_name}-karpenter-initial-"
-  image_id               = data.aws_ssm_parameter.eks_ami.value
-  instance_type          = "t3.medium"
-  vpc_security_group_ids = var.security_group_ids
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      volume_size           = 100
-      volume_type           = "gp3"
-      delete_on_termination = true
-      encrypted             = true
-    }
-  }
-
-  iam_instance_profile {
-    name = var.instance_profile_name
-  }
-
-  monitoring {
-    enabled = true
-  }
-
-  user_data = base64encode(<<-EOF
-    #!/bin/bash
-    set -ex
-    /etc/eks/bootstrap.sh ${var.cluster_name}
-  EOF
-  )
-
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 2
-  }
-
-  tag_specifications {
-    resource_type = "instance"
-    tags = merge(
-      var.tags,
-      {
-        Name                                   = "${var.cluster_name}-karpenter-initial"
-        "karpenter.sh/discovery"               = var.cluster_name
-      }
-    )
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-data "aws_ssm_parameter" "eks_ami" {
-  name = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2/recommended/image_id"
-}
-
-resource "aws_autoscaling_group" "karpenter_initial" {
-  name                = "${var.cluster_name}-karpenter-initial"
-  desired_capacity    = 2
-  max_size            = 3
-  min_size            = 2
-  vpc_zone_identifier = var.subnet_ids
-
-  launch_template {
-    id      = aws_launch_template.karpenter_initial.id
-    version = "$Latest"
-  }
-
-  tag {
-    key                 = "Name"
-    value               = "${var.cluster_name}-karpenter-initial"
-    propagate_at_launch = true
-  }
-
-  tag {
-    key                 = "kubernetes.io/cluster/${var.cluster_name}"
-    value               = "owned"
-    propagate_at_launch = true
-  }
-
-  lifecycle {
-    create_before_destroy = true
-    ignore_changes        = [desired_capacity]
-  }
 }
