@@ -8,6 +8,11 @@ variable "cluster_endpoint" {
   type        = string
 }
 
+variable "cluster_ca_data" {
+  description = "Base64 encoded certificate data for the cluster"
+  type        = string
+}
+
 variable "cluster_version" {
   description = "Kubernetes version"
   type        = string

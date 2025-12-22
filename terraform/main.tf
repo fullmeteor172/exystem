@@ -154,6 +154,7 @@ module "karpenter" {
 
   cluster_name             = module.eks.cluster_name
   cluster_endpoint         = module.eks.cluster_endpoint
+  cluster_ca_data          = module.eks.cluster_certificate_authority_data
   cluster_version          = var.cluster_version
   oidc_provider_arn        = module.eks.oidc_provider_arn
   node_iam_role_arn        = module.eks.karpenter_node_iam_role_arn

@@ -220,7 +220,11 @@ resource "aws_launch_template" "karpenter_initial" {
 
   user_data = base64encode(<<-EOF
     #!/bin/bash
-    /etc/eks/bootstrap.sh ${var.cluster_name}
+    set -ex
+    # Bootstrap script for Amazon Linux 2023
+    /usr/bin/eks-bootstrap.sh ${var.cluster_name} \
+      --apiserver-endpoint ${var.cluster_endpoint} \
+      --b64-cluster-ca $(echo ${var.cluster_ca_data} | base64 -d | base64 -w0)
   EOF
   )
 
