@@ -11,6 +11,14 @@ resource "helm_release" "karpenter" {
 
   create_namespace = true
 
+  # Increase timeout for initial installation
+  timeout = 600  # 10 minutes
+  wait    = true
+  wait_for_jobs = true
+
+  # Allow waiting for the initial node group to be ready
+  depends_on = [aws_autoscaling_group.karpenter_initial]
+
   values = [
     yamlencode({
       settings = {

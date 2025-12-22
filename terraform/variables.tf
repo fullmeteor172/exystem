@@ -59,7 +59,7 @@ variable "single_nat_gateway" {
 variable "cluster_version" {
   description = "Kubernetes version to use for EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.34"
 }
 
 variable "cluster_endpoint_public_access" {
