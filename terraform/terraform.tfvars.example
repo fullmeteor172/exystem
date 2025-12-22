@@ -64,7 +64,9 @@ cert_manager_namespace = "cert-manager"
 
 # Cloudflare configuration for automatic SSL certificates
 # Get your API token from: https://dash.cloudflare.com/profile/api-tokens
+# Get your Zone ID from your domain's Overview page in Cloudflare dashboard
 cloudflare_api_token = "your-cloudflare-api-token-here"
+cloudflare_zone_id   = "your-cloudflare-zone-id-here"
 cloudflare_email     = "your-email@example.com"
 
 # Email for Let's Encrypt certificate notifications
