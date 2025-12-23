@@ -1,253 +1,120 @@
 # EKS Infrastructure with Terraform
 
-A production-ready, modular Terraform configuration for deploying an AWS EKS cluster with Karpenter autoscaling, Traefik ingress, automatic SSL certificate management, and optional observability stack.
+Modular Terraform configuration for AWS EKS with Karpenter, Traefik, cert-manager, and observability.
 
-## 🏗️ Architecture Overview
+## Architecture
 
-This infrastructure deploys:
+### Core Components
+- **VPC**: Multi-AZ with public/private subnets
+- **EKS**: Managed Kubernetes with IRSA
+- **Karpenter**: Node autoscaling
+- **Traefik**: Ingress controller with automatic HTTPS
+- **Cert-Manager**: Let's Encrypt + Cloudflare DNS
 
-### **Core Components (Always Installed)**
-- **VPC**: Multi-AZ VPC with public and private subnets
-- **EKS Cluster**: Managed Kubernetes cluster with IRSA support
-- **Karpenter**: Advanced node autoscaler (replaces Cluster Autoscaler)
-- **Traefik**: Modern ingress controller with automatic HTTPS
-- **AWS EBS CSI Driver**: For persistent volume support
-- **Metrics Server**: For `kubectl top` and HPA support
-- **Cert-Manager**: Automatic SSL certificate management via Let's Encrypt + Cloudflare
+### Optional Components
+- **Observability**: Prometheus + Grafana + Loki (logs)
+- **RDS**: PostgreSQL database
+- **ElastiCache**: Redis cache
+- **EFS**: Shared file storage
 
-### **Optional Components (Feature Flags)**
-- **Observability Stack**:
-  - Prometheus (metrics collection and alerting)
-  - Loki (log aggregation with S3 backend)
-  - Grafana (visualization with pre-configured dashboards)
-  - Promtail (log shipper)
-- **RDS PostgreSQL**: Managed relational database
-- **ElastiCache Redis**: Managed in-memory cache
-- **EFS**: Elastic File System for shared storage
-- **EFS CSI Driver**: For EFS persistent volumes (auto-installed if EFS enabled)
+## Prerequisites
 
-## 📋 Prerequisites
-
-### 1. AWS Account Setup
-
-You should have already completed:
-- ✅ AWS root account (`meteor`)
-- ✅ IAM role `terraform-admin` with AdministratorAccess
-- ✅ IAM user `morpheus` with permission to assume `terraform-admin`
-- ✅ S3 bucket `tf-state-meteor` for Terraform state
-- ✅ DynamoDB table `terraform-locks` for state locking
-
-### 2. Required Tools
-
-Install the following tools on your local machine:
-
+**Tools:**
 ```bash
-# Terraform (>= 1.6.0)
-brew install terraform
-
-# AWS CLI
-brew install awscli
-
-# kubectl
-brew install kubectl
-
-# Helm (for managing Kubernetes packages)
-brew install helm
+brew install terraform awscli kubectl helm
 ```
 
-### 3. AWS Credentials
+**AWS Setup:**
+- S3 bucket for Terraform state (e.g., `tf-state-<name>`)
+- DynamoDB table for state locking (e.g., `terraform-locks`)
+- IAM role with AdministratorAccess (optional, for role assumption)
 
-Configure your AWS credentials for the `morpheus` user with the `terraform-admin` role:
+## Quick Start
 
-```bash
-# ~/.aws/credentials
-[morpheus]
-aws_access_key_id = YOUR_ACCESS_KEY
-aws_secret_access_key = YOUR_SECRET_KEY
+### 1. Configure
 
-# ~/.aws/config
-[profile morpheus-terraform-admin]
-role_arn = arn:aws:iam::143495498599:role/terraform-admin
-source_profile = morpheus
-region = us-west-2
-```
-
-Test the configuration:
-```bash
-export AWS_PROFILE=morpheus-terraform-admin
-aws sts get-caller-identity
-```
-
-## 🚀 Quick Start
-
-### 1. Clone and Navigate
-
-```bash
-cd terraform
-```
-
-### 2. Configure Your Environment
-
-Copy the example configuration:
 ```bash
 cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your settings
 ```
 
-Edit `terraform.tfvars` with your settings:
+**Required settings:**
 ```hcl
-# Required configurations
-project_name = "exystem"
+project_name = "myproject"
 environment  = "dev"
 aws_region   = "us-west-2"
+domain_name  = "example.com"
+acme_email   = "admin@example.com"
 
-# Cloudflare configuration (for automatic SSL)
-cloudflare_api_token = "your-cloudflare-api-token"
-cloudflare_email     = "your-email@example.com"
-domain_name          = "example.com"
-acme_email           = "admin@example.com"
-
-# Optional: Enable observability
-enable_observability = true
-
-# Optional: Enable RDS
-enable_rds = true
-
-# Optional: Enable Redis
-enable_elasticache = true
-
-# Optional: Enable EFS
-enable_efs = true
+# Cloudflare (see API Token section below)
+cloudflare_api_token = "your-token"
+cloudflare_zone_id   = "your-zone-id"
+cloudflare_email     = "your-email"
 ```
 
-### 3. Get Cloudflare API Token
+### 2. Cloudflare API Token
 
-1. Go to [Cloudflare API Tokens](https://dash.cloudflare.com/profile/api-tokens)
-2. Create a new token with the following permissions:
-   - **Zone - DNS - Edit**
-   - **Zone - Zone - Read**
-3. Select the specific zones (domains) you want to manage
-4. Copy the token to `terraform.tfvars`
+Create a token at https://dash.cloudflare.com/profile/api-tokens:
 
-### 4. Initialize Terraform
+1. Click "Create Token"
+2. Use "Edit zone DNS" template
+3. Set permissions:
+   - **Zone:DNS:Edit**
+   - **Zone:Zone:Read**
+4. Zone Resources: Include -> Specific zone -> your domain
+5. Copy the token to `terraform.tfvars`
+
+### 3. Deploy
 
 ```bash
-terraform init
+make init    # Initialize Terraform
+make plan    # Review changes
+make apply   # Deploy infrastructure
 ```
 
-This will:
-- Download required providers (AWS, Kubernetes, Helm)
-- Configure the S3 backend for state storage
+**Duration**: ~20-30 minutes for initial deployment
 
-### 5. Review the Plan
+### 4. Access the Cluster
 
 ```bash
-terraform plan
-```
-
-Review the resources that will be created. This is a safe operation that doesn't make any changes.
-
-### 6. Apply the Configuration
-
-```bash
-terraform apply
-```
-
-Type `yes` to confirm and create the infrastructure.
-
-**⏱️ Expected Duration**: 20-30 minutes for initial deployment
-
-### 7. Configure kubectl
-
-After the deployment completes, configure kubectl to access your cluster:
-
-```bash
-# Terraform will output this command, or use:
-aws eks update-kubeconfig \
-  --region us-west-2 \
-  --name exystem-dev \
-  --role-arn arn:aws:iam::143495498599:role/terraform-admin \
-  --alias exystem-dev
-
-# Verify access
+make kubeconfig  # Configure kubectl
 kubectl get nodes
-kubectl get pods -A
 ```
 
-## 📊 Accessing Services
+## Using the Makefile
+
+```bash
+make help            # Show all commands
+make init            # Initialize Terraform
+make plan            # Plan changes
+make apply           # Apply changes
+make destroy         # Destroy (use cleanup.sh for full cleanup)
+make kubeconfig      # Configure kubectl
+make verify          # Check cluster health
+make output          # Show outputs
+make grafana-password # Get Grafana password
+make rds-password    # Get RDS password
+```
+
+## Accessing Services
 
 ### Grafana (if observability enabled)
 
-```bash
-# URL: https://grafana.example.com
-# Username: admin
-# Password: (from terraform output or auto-generated)
-
-terraform output -raw grafana_admin_password
+```
+URL: https://grafana.<your-domain>
+User: admin
+Password: make grafana-password
 ```
 
-Pre-configured dashboards:
-- Kubernetes Cluster Overview
-- Kubernetes Pods Monitoring
-- Node Exporter Metrics
-- Loki Logs
+Pre-configured dashboards for Kubernetes and node metrics.
 
-### Prometheus (if observability enabled)
+### Creating Ingress
 
-```bash
-# URL: https://prometheus.example.com
-```
-
-### Traefik Dashboard
-
-The Traefik dashboard is disabled by default for security. To enable it temporarily:
-
-```bash
-kubectl port-forward -n traefik $(kubectl get pods -n traefik -l app.kubernetes.io/name=traefik -o name) 9000:9000
-# Access at: http://localhost:9000/dashboard/
-```
-
-## 🔧 Common Operations
-
-### Scaling Nodes
-
-Karpenter automatically scales nodes based on pod requirements. No manual intervention needed!
-
-To see Karpenter in action:
-```bash
-# Watch nodes
-kubectl get nodes -w
-
-# Deploy a test workload
-kubectl create deployment nginx --image=nginx --replicas=10
-
-# Karpenter will automatically provision nodes
-```
-
-### Viewing Logs
-
-```bash
-# View logs from all pods in a namespace
-kubectl logs -n <namespace> <pod-name>
-
-# Or use Grafana with Loki for advanced log querying
-# Navigate to: https://grafana.example.com
-```
-
-### Updating Cluster Version
-
-1. Update `cluster_version` in `terraform.tfvars`
-2. Run `terraform apply`
-3. Update node AMIs (Karpenter will automatically use the new version for new nodes)
-
-### Adding a New Ingress
-
-Create an Ingress resource:
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-app
-  namespace: default
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
@@ -269,256 +136,94 @@ spec:
     secretName: my-app-tls
 ```
 
-Cert-manager will automatically:
-- Request a certificate from Let's Encrypt
-- Configure DNS via Cloudflare
-- Install the certificate
-- Auto-renew before expiration
+Cert-manager will automatically provision and renew certificates.
 
-### Accessing RDS Database
-
-```bash
-# Get the connection details
-terraform output rds_endpoint
-terraform output rds_database_name
-
-# Get the password from AWS Secrets Manager
-aws secretsmanager get-secret-value \
-  --secret-id $(terraform output -raw rds_password_secret_arn) \
-  --query SecretString \
-  --output text | jq -r .password
-
-# Connect from within the cluster
-kubectl run -it --rm psql --image=postgres:16 --restart=Never -- \
-  psql -h <rds_endpoint> -U postgres -d app
-```
-
-### Accessing ElastiCache Redis
-
-```bash
-# Get the connection details
-terraform output elasticache_endpoint
-
-# Connect from within the cluster
-kubectl run -it --rm redis --image=redis:7 --restart=Never -- \
-  redis-cli -h <elasticache_endpoint> -p 6379
-```
-
-### Using EFS for Persistent Storage
-
-Create a PersistentVolumeClaim:
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: efs-claim
-spec:
-  accessModes:
-    - ReadWriteMany
-  storageClassName: efs
-  resources:
-    requests:
-      storage: 5Gi
-```
-
-## 🏗️ Module Structure
+## Module Structure
 
 ```
 terraform/
-├── main.tf                 # Root module orchestration
-├── variables.tf            # Input variables
-├── outputs.tf              # Output values
-├── backend.tf              # S3 backend configuration
-├── versions.tf             # Provider versions
-├── terraform.tfvars        # Your configuration (not in git)
-├── terraform.tfvars.example # Example configuration
-│
-├── modules/
-│   ├── networking/         # VPC, subnets, NAT gateway
-│   ├── eks/                # EKS cluster, IRSA, security groups
-│   ├── karpenter/          # Karpenter autoscaler
-│   ├── addons/             # Core Kubernetes addons
-│   ├── observability/      # Prometheus, Loki, Grafana
-│   ├── rds/                # PostgreSQL database
-│   ├── elasticache/        # Redis cache
-│   └── efs/                # Elastic File System
+├── main.tf              # Root module
+├── variables.tf         # Input variables
+├── outputs.tf           # Outputs
+├── terraform.tfvars     # Your config (gitignored)
+├── cleanup.sh           # Full cleanup script
+├── Makefile             # Helper commands
+└── modules/
+    ├── networking/      # VPC, subnets
+    ├── eks/             # EKS cluster
+    ├── karpenter/       # Node autoscaling
+    ├── addons/          # Traefik, cert-manager, CSI drivers
+    ├── observability/   # Prometheus, Grafana, Loki
+    ├── rds/             # PostgreSQL
+    ├── elasticache/     # Redis
+    └── efs/             # Shared storage
 ```
 
-## 💰 Cost Optimization
+## Cost Optimization
 
-### Development Environment
-
-For development/testing, use these settings to minimize costs:
-
+### Development
 ```hcl
-# Use a single NAT gateway
 single_nat_gateway = true
-
-# Use smaller instances
-rds_instance_class         = "db.t4g.micro"
-elasticache_node_type      = "cache.t4g.micro"
-
-# Disable multi-AZ
-rds_multi_az = false
-elasticache_automatic_failover = false
-
-# Reduce retention periods
-prometheus_retention_days = 7
-loki_retention_days       = 7
-rds_backup_retention_period = 1
-
-# Use Spot instances for Karpenter
+rds_instance_class = "db.t4g.micro"
+elasticache_node_type = "cache.t4g.micro"
 karpenter_node_capacity_type = ["spot"]
+prometheus_retention_days = 7
+loki_retention_days = 7
 ```
 
-### Production Environment
-
-For production, prioritize reliability:
-
+### Production
 ```hcl
-# Use NAT gateway per AZ for HA
 single_nat_gateway = false
-
-# Use appropriate instance sizes
-rds_instance_class         = "db.r6g.large"
-elasticache_node_type      = "cache.r6g.large"
-
-# Enable multi-AZ
 rds_multi_az = true
 elasticache_automatic_failover = true
 elasticache_num_cache_nodes = 2
-
-# Longer retention
-prometheus_retention_days = 30
-loki_retention_days       = 90
-rds_backup_retention_period = 30
-
-# Mix of Spot and On-Demand
 karpenter_node_capacity_type = ["spot", "on-demand"]
+prometheus_retention_days = 30
+loki_retention_days = 30
 ```
 
-## 🔒 Security Best Practices
+## Cleanup
 
-1. **Secrets Management**:
-   - RDS passwords are auto-generated and stored in AWS Secrets Manager
-   - Use Kubernetes secrets for application credentials
-   - Never commit `terraform.tfvars` to version control
-
-2. **Network Security**:
-   - Private subnets for EKS nodes, RDS, and ElastiCache
-   - Security groups with least-privilege access
-   - VPC Flow Logs enabled for audit
-
-3. **Cluster Access**:
-   - Use IAM roles for service accounts (IRSA)
-   - Enable cluster endpoint private access
-   - Restrict public access in production
-
-4. **Certificate Management**:
-   - Automatic certificate rotation via cert-manager
-   - All ingress traffic uses HTTPS
-   - Let's Encrypt production certificates
-
-## 🔄 Upgrading
-
-### Terraform Providers
-
-Update provider versions in `versions.tf` and run:
-```bash
-terraform init -upgrade
-terraform plan
-terraform apply
-```
-
-### Helm Charts
-
-Helm charts are pinned to specific versions in the module code. To upgrade:
-1. Update the chart version in the relevant module
-2. Review the chart's changelog for breaking changes
-3. Run `terraform plan` and `terraform apply`
-
-### Kubernetes Version
-
-1. Update `cluster_version` in `terraform.tfvars`
-2. Apply: `terraform apply`
-3. Karpenter will automatically use the new version for new nodes
-4. Drain and delete old nodes to complete the upgrade
-
-## 🧹 Cleanup
-
-To destroy all resources:
+For complete cleanup including orphaned AWS resources:
 
 ```bash
-# DANGER: This will delete everything!
-terraform destroy
-
-# You'll need to confirm by typing 'yes'
+./cleanup.sh
 ```
 
-**Note**: Some resources have deletion protection enabled (e.g., RDS). You may need to:
-1. Disable deletion protection in the console
-2. Run `terraform destroy` again
+This script:
+1. Removes Helm releases and Kubernetes resources
+2. Empties S3 buckets
+3. Disables RDS deletion protection
+4. Runs terraform destroy
+5. Cleans up orphaned load balancers, volumes, security groups
+6. Optionally resets Terraform state
 
-## 📚 Additional Resources
+## Troubleshooting
 
-- [AWS EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)
-- [Karpenter Documentation](https://karpenter.sh/)
-- [Traefik Documentation](https://doc.traefik.io/traefik/)
-- [Cert-Manager Documentation](https://cert-manager.io/docs/)
-- [Prometheus Operator](https://prometheus-operator.dev/)
-- [Grafana Documentation](https://grafana.com/docs/)
+### Nodes not scaling
 
-## 🐛 Troubleshooting
-
-### Pods are pending and nodes aren't scaling
-
-Check Karpenter logs:
 ```bash
 kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter
+kubectl get nodepools,ec2nodeclasses
 ```
 
-Common issues:
-- Instance type not available in AZ
-- Service quotas exceeded
-- Insufficient IAM permissions
+### Certificates not issuing
 
-### Certificate not being issued
-
-Check cert-manager logs:
 ```bash
 kubectl logs -n cert-manager -l app=cert-manager
-kubectl describe certificate -n <namespace> <cert-name>
-kubectl describe certificaterequest -n <namespace>
+kubectl describe certificate -A
 ```
-
-Common issues:
-- Incorrect Cloudflare API token
-- Domain not managed by Cloudflare
-- DNS propagation delay
 
 ### Can't connect to RDS/ElastiCache
 
-Verify security groups:
 ```bash
-# Check that pods can resolve the endpoint
-kubectl run -it --rm debug --image=busybox --restart=Never -- nslookup <endpoint>
-
-# Check that the security group allows traffic from EKS nodes
-aws ec2 describe-security-groups --group-ids <sg-id>
+# From within a pod:
+kubectl run debug --rm -it --image=busybox -- nslookup <endpoint>
 ```
 
-## 📝 License
+## Resources
 
-This infrastructure code is provided as-is for use in your organization.
-
-## 🤝 Contributing
-
-This is an internal infrastructure repository. For changes:
-1. Create a new branch
-2. Make your changes
-3. Test with `terraform plan`
-4. Submit a pull request
-
----
-
-**Built with ❤️ for production-grade Kubernetes on AWS**
+- [Karpenter](https://karpenter.sh/)
+- [Traefik](https://doc.traefik.io/traefik/)
+- [Cert-Manager](https://cert-manager.io/docs/)
+- [EKS Best Practices](https://aws.github.io/aws-eks-best-practices/)

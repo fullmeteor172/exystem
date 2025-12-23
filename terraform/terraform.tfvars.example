@@ -6,6 +6,11 @@ project_name = "exystem"
 environment  = "dev"
 aws_region   = "us-west-2"
 
+# Optional: IAM role to assume for Terraform operations
+# Leave empty to use current credentials
+# assume_role_arn = "arn:aws:iam::123456789012:role/terraform-admin"
+assume_role_arn = ""
+
 tags = {
   Owner = "meteor"
   Team  = "platform"
@@ -63,8 +68,17 @@ traefik_namespace      = "traefik"
 cert_manager_namespace = "cert-manager"
 
 # Cloudflare configuration for automatic SSL certificates
-# Get your API token from: https://dash.cloudflare.com/profile/api-tokens
-# Get your Zone ID from your domain's Overview page in Cloudflare dashboard
+#
+# API Token Setup:
+#   1. Go to: https://dash.cloudflare.com/profile/api-tokens
+#   2. Create Token -> Use "Edit zone DNS" template
+#   3. Required permissions:
+#      - Zone:DNS:Edit (for creating DNS records)
+#      - Zone:Zone:Read (for reading zone info)
+#   4. Zone Resources: Include -> Specific zone -> your domain
+#
+# Zone ID: Found on your domain's Overview page in Cloudflare dashboard
+#
 cloudflare_api_token = "your-cloudflare-api-token-here"
 cloudflare_zone_id   = "your-cloudflare-zone-id-here"
 cloudflare_email     = "your-email@example.com"

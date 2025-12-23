@@ -32,13 +32,14 @@ resource "aws_security_group" "rds" {
 }
 
 resource "aws_security_group_rule" "rds_ingress" {
+  count                    = length(var.allowed_security_group_ids)
   type                     = "ingress"
   from_port                = 5432
   to_port                  = 5432
   protocol                 = "tcp"
   security_group_id        = aws_security_group.rds.id
-  source_security_group_id = var.allowed_security_group_ids[0]
-  description              = "PostgreSQL access from EKS nodes"
+  source_security_group_id = var.allowed_security_group_ids[count.index]
+  description              = "PostgreSQL access from allowed security group ${count.index + 1}"
 }
 
 resource "aws_security_group_rule" "rds_egress" {

@@ -18,6 +18,12 @@ variable "aws_region" {
   default     = "us-west-2"
 }
 
+variable "assume_role_arn" {
+  description = "IAM role ARN to assume for Terraform operations (optional)"
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Additional tags to apply to all resources"
   type        = map(string)

@@ -1,147 +1,213 @@
 #!/bin/bash
 set -e
 
-echo "🧹 Complete AWS Infrastructure Cleanup Script"
-echo "=============================================="
+echo "=== Complete Infrastructure Cleanup ==="
 echo ""
-echo "⚠️  WARNING: This will destroy ALL resources created by Terraform"
-echo "This includes EKS cluster, RDS, ElastiCache, networking, etc."
+echo "WARNING: This will destroy ALL resources including:"
+echo "  - EKS cluster and all workloads"
+echo "  - RDS databases (if enabled)"
+echo "  - ElastiCache clusters (if enabled)"
+echo "  - EFS file systems (if enabled)"
+echo "  - VPC and networking"
+echo "  - All S3 data (except Terraform state)"
 echo ""
-read -p "Are you sure you want to continue? Type 'yes' to proceed: " confirm
+read -p "Type 'destroy' to proceed: " confirm
 
-if [ "$confirm" != "yes" ]; then
+if [ "$confirm" != "destroy" ]; then
     echo "Cleanup cancelled."
     exit 0
 fi
 
-PROJECT_NAME="exystem"
-ENVIRONMENT="dev"
+# Configuration - update these to match your setup
+PROJECT_NAME="${PROJECT_NAME:-exystem}"
+ENVIRONMENT="${ENVIRONMENT:-dev}"
 CLUSTER_NAME="${PROJECT_NAME}-${ENVIRONMENT}"
-AWS_REGION="us-west-2"
+AWS_REGION="${AWS_REGION:-us-west-2}"
+TF_STATE_BUCKET="${TF_STATE_BUCKET:-tf-state-meteor}"
+TF_LOCK_TABLE="${TF_LOCK_TABLE:-terraform-locks}"
 
 echo ""
-echo "Step 1: Cleaning up Kubernetes resources..."
-echo "=============================================="
+echo "=== Step 1: Pre-cleanup Kubernetes resources ==="
 
-# Configure kubectl if needed
-aws eks update-kubeconfig --region $AWS_REGION --name $CLUSTER_NAME \
-  --role-arn arn:aws:iam::143495498599:role/terraform-admin 2>/dev/null || true
+# Try to connect to the cluster
+if aws eks describe-cluster --region "$AWS_REGION" --name "$CLUSTER_NAME" &>/dev/null; then
+    echo "Cluster found. Cleaning up Kubernetes resources..."
 
-# Delete all ingress resources (removes load balancers)
-echo "Deleting ingress resources..."
-kubectl delete ingress --all --all-namespaces 2>/dev/null || true
+    # Update kubeconfig
+    aws eks update-kubeconfig --region "$AWS_REGION" --name "$CLUSTER_NAME" 2>/dev/null || true
 
-# Delete all services of type LoadBalancer
-echo "Deleting LoadBalancer services..."
-kubectl delete svc --all-namespaces --field-selector spec.type=LoadBalancer 2>/dev/null || true
+    # Delete all Helm releases first (they manage the pods/PVCs)
+    echo "Deleting Helm releases..."
+    for ns in $(kubectl get namespaces -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo ""); do
+        helm list -n "$ns" -q 2>/dev/null | xargs -r -I {} helm uninstall {} -n "$ns" --wait=false 2>/dev/null || true
+    done
 
-# Delete all PVCs (removes EBS volumes)
-echo "Deleting PersistentVolumeClaims..."
-kubectl delete pvc --all --all-namespaces 2>/dev/null || true
+    # Delete ingresses (removes load balancers)
+    echo "Deleting ingress resources..."
+    kubectl delete ingress --all --all-namespaces --wait=false 2>/dev/null || true
 
-echo "Waiting 60 seconds for AWS resources to be cleaned up..."
-sleep 60
+    # Delete LoadBalancer services
+    echo "Deleting LoadBalancer services..."
+    kubectl get svc --all-namespaces -o json 2>/dev/null | \
+        jq -r '.items[] | select(.spec.type=="LoadBalancer") | "\(.metadata.namespace) \(.metadata.name)"' | \
+        while read ns name; do
+            kubectl delete svc "$name" -n "$ns" --wait=false 2>/dev/null || true
+        done
 
-echo ""
-echo "Step 2: Emptying S3 buckets (excluding Terraform state)..."
-echo "=============================================="
+    # Force delete stuck PVCs by removing finalizers
+    echo "Removing PVC finalizers and deleting PVCs..."
+    kubectl get pvc --all-namespaces -o json 2>/dev/null | \
+        jq -r '.items[] | "\(.metadata.namespace) \(.metadata.name)"' | \
+        while read ns name; do
+            kubectl patch pvc "$name" -n "$ns" -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+            kubectl delete pvc "$name" -n "$ns" --wait=false 2>/dev/null || true
+        done
 
-# Explicitly preserve Terraform backend resources
-echo "⚠️  Preserving Terraform backend resources:"
-echo "   - S3 Bucket: tf-state-meteor"
-echo "   - DynamoDB Table: terraform-locks"
-echo ""
+    # Force delete stuck PVs
+    echo "Removing PV finalizers and deleting PVs..."
+    kubectl get pv -o json 2>/dev/null | \
+        jq -r '.items[].metadata.name' | \
+        while read name; do
+            kubectl patch pv "$name" -p '{"metadata":{"finalizers":null}}' 2>/dev/null || true
+            kubectl delete pv "$name" --wait=false 2>/dev/null || true
+        done
 
-# Empty Loki logs bucket only
-LOKI_BUCKET="${CLUSTER_NAME}-loki-logs"
-if aws s3 ls "s3://${LOKI_BUCKET}" 2>/dev/null; then
-    echo "Emptying ${LOKI_BUCKET}..."
-    aws s3 rm "s3://${LOKI_BUCKET}" --recursive || true
+    echo "Waiting 30 seconds for resources to terminate..."
+    sleep 30
 else
-    echo "Loki bucket ${LOKI_BUCKET} not found or already deleted"
+    echo "Cluster not found or not accessible. Skipping Kubernetes cleanup."
 fi
 
 echo ""
-echo "Step 3: Running Terraform destroy..."
-echo "=============================================="
+echo "=== Step 2: Empty S3 buckets ==="
 
-terraform destroy -auto-approve
+# Find and empty project-related buckets (excluding state bucket)
+for bucket in $(aws s3 ls 2>/dev/null | awk '{print $3}' | grep -E "^${CLUSTER_NAME}" || echo ""); do
+    if [ "$bucket" != "$TF_STATE_BUCKET" ]; then
+        echo "Emptying bucket: $bucket"
+        aws s3 rm "s3://$bucket" --recursive 2>/dev/null || true
+        # Also delete versions if versioning is enabled
+        aws s3api list-object-versions --bucket "$bucket" --output json 2>/dev/null | \
+            jq -r '.Versions[]? | "\(.Key) \(.VersionId)"' | \
+            while read key version; do
+                aws s3api delete-object --bucket "$bucket" --key "$key" --version-id "$version" 2>/dev/null || true
+            done
+        aws s3api list-object-versions --bucket "$bucket" --output json 2>/dev/null | \
+            jq -r '.DeleteMarkers[]? | "\(.Key) \(.VersionId)"' | \
+            while read key version; do
+                aws s3api delete-object --bucket "$bucket" --key "$key" --version-id "$version" 2>/dev/null || true
+            done
+    fi
+done
 
 echo ""
-echo "Step 4: Checking for orphaned resources..."
-echo "=============================================="
+echo "=== Step 3: Terraform destroy ==="
 
+# Disable deletion protection on RDS if it exists
+echo "Disabling RDS deletion protection..."
+aws rds describe-db-instances --region "$AWS_REGION" 2>/dev/null | \
+    jq -r ".DBInstances[] | select(.DBInstanceIdentifier | startswith(\"$CLUSTER_NAME\")) | .DBInstanceIdentifier" | \
+    while read db; do
+        echo "Disabling deletion protection for: $db"
+        aws rds modify-db-instance --db-instance-identifier "$db" --no-deletion-protection --apply-immediately --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+# Run terraform destroy with auto-approve
+cd "$(dirname "$0")"
+terraform destroy -auto-approve -parallelism=20 2>&1 || {
+    echo ""
+    echo "Terraform destroy encountered errors. Retrying with refresh..."
+    terraform refresh 2>/dev/null || true
+    terraform destroy -auto-approve -parallelism=20 -refresh=false 2>&1 || true
+}
+
+echo ""
+echo "=== Step 4: Cleanup orphaned AWS resources ==="
+
+# Delete orphaned load balancers
 echo "Checking for orphaned load balancers..."
-ORPHAN_ELBS=$(aws elbv2 describe-load-balancers --region $AWS_REGION \
-  --query "LoadBalancers[?contains(LoadBalancerName, '${CLUSTER_NAME}')].LoadBalancerArn" \
-  --output text 2>/dev/null || true)
+aws elbv2 describe-load-balancers --region "$AWS_REGION" 2>/dev/null | \
+    jq -r ".LoadBalancers[] | select(.LoadBalancerName | contains(\"$CLUSTER_NAME\") or contains(\"k8s-\")) | .LoadBalancerArn" | \
+    while read arn; do
+        echo "Deleting load balancer: $arn"
+        aws elbv2 delete-load-balancer --load-balancer-arn "$arn" --region "$AWS_REGION" 2>/dev/null || true
+    done
 
-if [ -n "$ORPHAN_ELBS" ]; then
-    echo "⚠️  Found orphaned load balancers:"
-    echo "$ORPHAN_ELBS"
-    echo ""
-    read -p "Delete these load balancers? (yes/no): " delete_lbs
-    if [ "$delete_lbs" = "yes" ]; then
-        for lb_arn in $ORPHAN_ELBS; do
-            echo "Deleting $lb_arn..."
-            aws elbv2 delete-load-balancer --load-balancer-arn "$lb_arn" --region $AWS_REGION
-        done
-    fi
-fi
+# Delete orphaned target groups
+echo "Checking for orphaned target groups..."
+aws elbv2 describe-target-groups --region "$AWS_REGION" 2>/dev/null | \
+    jq -r ".TargetGroups[] | select(.TargetGroupName | contains(\"k8s-\")) | .TargetGroupArn" | \
+    while read arn; do
+        echo "Deleting target group: $arn"
+        aws elbv2 delete-target-group --target-group-arn "$arn" --region "$AWS_REGION" 2>/dev/null || true
+    done
 
+# Delete orphaned EBS volumes
 echo "Checking for orphaned EBS volumes..."
-ORPHAN_VOLS=$(aws ec2 describe-volumes --region $AWS_REGION \
-  --filters "Name=status,Values=available" "Name=tag:kubernetes.io/cluster/${CLUSTER_NAME},Values=owned" \
-  --query "Volumes[].VolumeId" --output text 2>/dev/null || true)
+aws ec2 describe-volumes --region "$AWS_REGION" --filters "Name=status,Values=available" 2>/dev/null | \
+    jq -r '.Volumes[] | select(.Tags[]? | select(.Key | contains("kubernetes") or contains("karpenter"))) | .VolumeId' | \
+    while read vol; do
+        echo "Deleting volume: $vol"
+        aws ec2 delete-volume --volume-id "$vol" --region "$AWS_REGION" 2>/dev/null || true
+    done
 
-if [ -n "$ORPHAN_VOLS" ]; then
-    echo "⚠️  Found orphaned EBS volumes:"
-    echo "$ORPHAN_VOLS"
-    echo ""
-    read -p "Delete these volumes? (yes/no): " delete_vols
-    if [ "$delete_vols" = "yes" ]; then
-        for vol_id in $ORPHAN_VOLS; do
-            echo "Deleting $vol_id..."
-            aws ec2 delete-volume --volume-id "$vol_id" --region $AWS_REGION
-        done
-    fi
-fi
-
+# Release orphaned Elastic IPs
 echo "Checking for orphaned Elastic IPs..."
-ORPHAN_EIPS=$(aws ec2 describe-addresses --region $AWS_REGION \
-  --filters "Name=tag:Name,Values=${CLUSTER_NAME}*" \
-  --query "Addresses[?AssociationId==null].AllocationId" \
-  --output text 2>/dev/null || true)
+aws ec2 describe-addresses --region "$AWS_REGION" 2>/dev/null | \
+    jq -r ".Addresses[] | select(.Tags[]?.Value | contains(\"$CLUSTER_NAME\")) | select(.AssociationId == null) | .AllocationId" | \
+    while read eip; do
+        echo "Releasing Elastic IP: $eip"
+        aws ec2 release-address --allocation-id "$eip" --region "$AWS_REGION" 2>/dev/null || true
+    done
 
-if [ -n "$ORPHAN_EIPS" ]; then
-    echo "⚠️  Found orphaned Elastic IPs:"
-    echo "$ORPHAN_EIPS"
-    echo ""
-    read -p "Release these Elastic IPs? (yes/no): " delete_eips
-    if [ "$delete_eips" = "yes" ]; then
-        for eip_id in $ORPHAN_EIPS; do
-            echo "Releasing $eip_id..."
-            aws ec2 release-address --allocation-id "$eip_id" --region $AWS_REGION
+# Delete orphaned security groups
+echo "Checking for orphaned security groups..."
+aws ec2 describe-security-groups --region "$AWS_REGION" 2>/dev/null | \
+    jq -r ".SecurityGroups[] | select(.GroupName | contains(\"$CLUSTER_NAME\") or contains(\"k8s-\")) | select(.GroupName != \"default\") | .GroupId" | \
+    while read sg; do
+        echo "Deleting security group: $sg"
+        # First remove all ingress/egress rules
+        aws ec2 revoke-security-group-ingress --group-id "$sg" --ip-permissions "$(aws ec2 describe-security-groups --group-ids $sg --query 'SecurityGroups[0].IpPermissions' --output json)" --region "$AWS_REGION" 2>/dev/null || true
+        aws ec2 revoke-security-group-egress --group-id "$sg" --ip-permissions "$(aws ec2 describe-security-groups --group-ids $sg --query 'SecurityGroups[0].IpPermissionsEgress' --output json)" --region "$AWS_REGION" 2>/dev/null || true
+        aws ec2 delete-security-group --group-id "$sg" --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+# Delete orphaned network interfaces
+echo "Checking for orphaned network interfaces..."
+aws ec2 describe-network-interfaces --region "$AWS_REGION" --filters "Name=status,Values=available" 2>/dev/null | \
+    jq -r ".NetworkInterfaces[] | select(.Description | contains(\"$CLUSTER_NAME\") or contains(\"ELB\") or contains(\"kubernetes\")) | .NetworkInterfaceId" | \
+    while read eni; do
+        echo "Deleting network interface: $eni"
+        aws ec2 delete-network-interface --network-interface-id "$eni" --region "$AWS_REGION" 2>/dev/null || true
+    done
+
+echo ""
+echo "=== Step 5: Reset Terraform state (optional) ==="
+read -p "Reset Terraform state in S3? This allows fresh 'terraform init'. (yes/no): " reset_state
+
+if [ "$reset_state" = "yes" ]; then
+    echo "Clearing Terraform state..."
+    aws s3 rm "s3://$TF_STATE_BUCKET/${PROJECT_NAME}/" --recursive 2>/dev/null || true
+
+    # Clear DynamoDB locks
+    aws dynamodb scan --table-name "$TF_LOCK_TABLE" --projection-expression "LockID" 2>/dev/null | \
+        jq -r '.Items[].LockID.S' | grep "$PROJECT_NAME" | \
+        while read lock; do
+            aws dynamodb delete-item --table-name "$TF_LOCK_TABLE" --key "{\"LockID\": {\"S\": \"$lock\"}}" 2>/dev/null || true
         done
-    fi
+
+    echo "State reset complete."
 fi
 
 echo ""
-echo "✅ Cleanup complete!"
+echo "=== Cleanup Complete ==="
 echo ""
-echo "📋 Summary:"
-echo "✓ All Kubernetes resources cleaned up"
-echo "✓ All infrastructure resources destroyed"
-echo "✓ S3 buckets emptied (except Terraform state)"
+echo "Preserved resources:"
+echo "  - S3 Bucket: $TF_STATE_BUCKET"
+echo "  - DynamoDB Table: $TF_LOCK_TABLE"
 echo ""
-echo "🔒 Preserved Resources (DO NOT DELETE):"
-echo "   - S3 Bucket: tf-state-meteor"
-echo "   - DynamoDB Table: terraform-locks"
-echo ""
-echo "📋 Next steps:"
-echo "1. Run 'terraform init' to reinitialize"
-echo "2. Run 'terraform plan' to preview changes"
-echo "3. Run 'terraform apply' to recreate infrastructure"
-echo "4. Check AWS Console for any remaining orphaned resources"
-echo "5. Verify no unexpected charges in AWS Cost Explorer"
-echo ""
+echo "Next steps:"
+echo "  1. rm -rf .terraform .terraform.lock.hcl"
+echo "  2. terraform init"
+echo "  3. terraform plan"
+echo "  4. terraform apply"
