@@ -229,22 +229,15 @@ resource "kubectl_manifest" "karpenter_node_pool" {
         cpu    = "1000"
         memory = "1000Gi"
       }
-      # Smart consolidation settings
+      # Consolidation settings - 30m gives workloads time to stabilize
       disruption = {
         consolidationPolicy = "WhenEmptyOrUnderutilized"
-        consolidateAfter    = "30s"  # Quickly consolidate underutilized nodes
-
-        # Disruption budgets to control node replacement rate
-budgets = [
-  {
-    nodes = "10%"
-  },
-  {
-    nodes    = "0"
-    schedule = "0 2 * * *"
-    duration = "1h"
-  }
-]
+        consolidateAfter    = "30m"
+        budgets = [
+          {
+            nodes = "10%"
+          }
+        ]
       }
     }
   })

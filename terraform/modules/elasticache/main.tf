@@ -27,13 +27,14 @@ resource "aws_security_group" "elasticache" {
 }
 
 resource "aws_security_group_rule" "elasticache_ingress" {
+  count                    = length(var.allowed_security_group_ids)
   type                     = "ingress"
   from_port                = 6379
   to_port                  = 6379
   protocol                 = "tcp"
   security_group_id        = aws_security_group.elasticache.id
-  source_security_group_id = var.allowed_security_group_ids[0]
-  description              = "Redis access from EKS nodes"
+  source_security_group_id = var.allowed_security_group_ids[count.index]
+  description              = "Redis access from allowed security group ${count.index + 1}"
 }
 
 resource "aws_security_group_rule" "elasticache_egress" {

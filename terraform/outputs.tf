@@ -58,7 +58,7 @@ output "oidc_provider_arn" {
 
 output "configure_kubectl" {
   description = "Command to configure kubectl"
-  value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name} --role-arn arn:aws:iam::143495498599:role/terraform-admin --alias ${module.eks.cluster_name}"
+  value       = var.assume_role_arn != "" ? "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name} --role-arn ${var.assume_role_arn} --alias ${module.eks.cluster_name}" : "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name} --alias ${module.eks.cluster_name}"
 }
 
 ################################################################################
@@ -123,7 +123,8 @@ output "grafana_url" {
   value       = var.enable_observability ? "https://grafana.${var.domain_name}" : null
 }
 
-output "prometheus_url" {
-  description = "URL to access Prometheus"
-  value       = var.enable_observability ? "https://prometheus.${var.domain_name}" : null
+output "grafana_admin_password" {
+  description = "Grafana admin password"
+  value       = var.enable_observability ? module.observability[0].grafana_admin_password : null
+  sensitive   = true
 }

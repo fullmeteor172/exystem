@@ -5,8 +5,11 @@
 provider "aws" {
   region = var.aws_region
 
-  assume_role {
-    role_arn = "arn:aws:iam::143495498599:role/terraform-admin"
+  dynamic "assume_role" {
+    for_each = var.assume_role_arn != "" ? [1] : []
+    content {
+      role_arn = var.assume_role_arn
+    }
   }
 
   default_tags {
@@ -33,16 +36,7 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args = [
-      "eks",
-      "get-token",
-      "--cluster-name",
-      module.eks.cluster_name,
-      "--region",
-      var.aws_region,
-      "--role-arn",
-      "arn:aws:iam::143495498599:role/terraform-admin"
-    ]
+    args        = local.eks_auth_args
   }
 }
 
@@ -54,16 +48,7 @@ provider "helm" {
     exec {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args = [
-        "eks",
-        "get-token",
-        "--cluster-name",
-        module.eks.cluster_name,
-        "--region",
-        var.aws_region,
-        "--role-arn",
-        "arn:aws:iam::143495498599:role/terraform-admin"
-      ]
+      args        = local.eks_auth_args
     }
   }
 }
@@ -76,16 +61,7 @@ provider "kubectl" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args = [
-      "eks",
-      "get-token",
-      "--cluster-name",
-      module.eks.cluster_name,
-      "--region",
-      var.aws_region,
-      "--role-arn",
-      "arn:aws:iam::143495498599:role/terraform-admin"
-    ]
+    args        = local.eks_auth_args
   }
 }
 
@@ -107,6 +83,18 @@ locals {
     Environment = var.environment
     ManagedBy   = "Terraform"
   }
+
+  # EKS auth args for kubectl/helm providers
+  eks_auth_args = var.assume_role_arn != "" ? [
+    "eks", "get-token",
+    "--cluster-name", module.eks.cluster_name,
+    "--region", var.aws_region,
+    "--role-arn", var.assume_role_arn
+  ] : [
+    "eks", "get-token",
+    "--cluster-name", module.eks.cluster_name,
+    "--region", var.aws_region
+  ]
 }
 
 ################################################################################
@@ -210,17 +198,14 @@ module "observability" {
   count  = var.enable_observability ? 1 : 0
   source = "./modules/observability"
 
-  cluster_name           = module.eks.cluster_name
-  oidc_provider_arn      = module.eks.oidc_provider_arn
-  namespace              = var.observability_namespace
-
-  grafana_admin_password = var.grafana_admin_password
-  loki_retention_days    = var.loki_retention_days
+  cluster_name              = module.eks.cluster_name
+  namespace                 = var.observability_namespace
+  grafana_admin_password    = var.grafana_admin_password
+  loki_retention_days       = var.loki_retention_days
   prometheus_retention_days = var.prometheus_retention_days
-  prometheus_storage_size = var.prometheus_storage_size
-  domain_name            = var.domain_name
-
-  tags = local.common_tags
+  prometheus_storage_size   = var.prometheus_storage_size
+  domain_name               = var.domain_name
+  tags                      = local.common_tags
 
   depends_on = [module.addons]
 }

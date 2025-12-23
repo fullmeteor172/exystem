@@ -3,11 +3,6 @@ variable "cluster_name" {
   type        = string
 }
 
-variable "oidc_provider_arn" {
-  description = "ARN of the OIDC provider"
-  type        = string
-}
-
 variable "namespace" {
   description = "Namespace for observability stack"
   type        = string
@@ -15,7 +10,7 @@ variable "namespace" {
 }
 
 variable "grafana_admin_password" {
-  description = "Admin password for Grafana"
+  description = "Admin password for Grafana (auto-generated if empty)"
   type        = string
   sensitive   = true
   default     = ""
