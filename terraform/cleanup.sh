@@ -1,6 +1,12 @@
 #!/bin/bash
 set -e
 
+# Disable pagers and interactive prompts
+export PAGER=cat
+export AWS_PAGER=""
+export TF_CLI_ARGS="-no-color"
+export TF_INPUT=false
+
 echo "=== Complete Infrastructure Cleanup ==="
 echo ""
 echo "WARNING: This will destroy ALL resources including:"
@@ -72,8 +78,8 @@ if aws eks describe-cluster --region "$AWS_REGION" --name "$CLUSTER_NAME" &>/dev
             kubectl delete pv "$name" --wait=false 2>/dev/null || true
         done
 
-    echo "Waiting 30 seconds for resources to terminate..."
-    sleep 30
+    echo "Waiting 10 seconds for resources to terminate..."
+    sleep 10
 else
     echo "Cluster not found or not accessible. Skipping Kubernetes cleanup."
 fi
@@ -114,11 +120,11 @@ aws rds describe-db-instances --region "$AWS_REGION" 2>/dev/null | \
 
 # Run terraform destroy with auto-approve
 cd "$(dirname "$0")"
-terraform destroy -auto-approve -parallelism=20 2>&1 || {
+terraform destroy -auto-approve -input=false -no-color -parallelism=20 || {
     echo ""
     echo "Terraform destroy encountered errors. Retrying with refresh..."
-    terraform refresh 2>/dev/null || true
-    terraform destroy -auto-approve -parallelism=20 -refresh=false 2>&1 || true
+    terraform refresh -input=false -no-color 2>/dev/null || true
+    terraform destroy -auto-approve -input=false -no-color -parallelism=20 -refresh=false || true
 }
 
 echo ""
