@@ -128,8 +128,8 @@ resource "kubectl_manifest" "karpenter_node_class" {
     }
     spec = {
       amiFamily = "AL2023"
-      # Use instance profile name, not role ARN
-      role = var.instance_profile_name
+      # Karpenter v1 manages instance profiles - provide IAM role name
+      role = var.node_iam_role_name
 
       subnetSelectorTerms = [
         for subnet_id in var.subnet_ids : {

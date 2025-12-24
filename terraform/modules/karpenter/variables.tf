@@ -28,8 +28,8 @@ variable "node_iam_role_arn" {
   type        = string
 }
 
-variable "instance_profile_name" {
-  description = "Name of the instance profile"
+variable "node_iam_role_name" {
+  description = "Name of the Karpenter node IAM role (Karpenter manages instance profiles)"
   type        = string
 }
 

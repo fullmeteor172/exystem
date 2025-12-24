@@ -158,3 +158,20 @@ efs_throughput_mode  = "bursting"        # or "provisioned" for consistent throu
 
 # Only used if throughput_mode is "provisioned"
 # efs_provisioned_throughput_in_mibps = 100
+
+################################################################################
+# Bastion Configuration
+################################################################################
+
+# Set to true to create a bastion host for EFS access and debugging
+# Requires enable_efs = true for EFS mounting functionality
+enable_bastion = false
+
+bastion_instance_type = "t3.micro"
+
+# Restrict SSH access to your IP (recommended for production)
+# Find your IP: curl -s ifconfig.me
+bastion_allowed_ssh_cidrs = ["0.0.0.0/0"]  # Change to ["YOUR_IP/32"] for security
+
+# Path where EFS will be mounted on the bastion
+bastion_efs_mount_path = "/mnt/efs"

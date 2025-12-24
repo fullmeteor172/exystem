@@ -1,77 +1,109 @@
-# Exystem - Production-Grade AWS Infrastructure
+# Exystem - AWS EKS Provisioning Tool
 
-This repository contains Terraform infrastructure-as-code for deploying production-grade Kubernetes clusters on AWS EKS.
+Provision production-grade Kubernetes clusters on AWS EKS with modular, optional components.
 
-## 📁 Repository Structure
-
-```
-exystem/
-├── terraform/          # Main Terraform infrastructure code
-│   ├── modules/       # Reusable Terraform modules
-│   ├── README.md      # Detailed infrastructure documentation
-│   └── ...
-└── README.md          # This file
-```
-
-## 🚀 Quick Start
-
-Navigate to the `terraform/` directory and follow the comprehensive guide:
+## Quick Start
 
 ```bash
 cd terraform
-cat README.md  # Read the full documentation
+
+# 1. Initialize a new cluster (creates isolated state)
+./setup.sh myapp dev
+
+# 2. Configure
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your settings
+
+# 3. Review what will be created
+./plan.sh
+
+# 4. Deploy
+terraform apply
+
+# 5. Access the cluster
+make kubeconfig
+kubectl get nodes
 ```
 
-## 📖 Documentation
+## What Gets Created
 
-All infrastructure documentation is located in [`terraform/README.md`](./terraform/README.md).
+**Core (Always Created):**
+- VPC with public/private subnets across 3 AZs
+- EKS cluster with Karpenter autoscaling
+- Traefik ingress controller with NLB
+- Cert-manager with Let's Encrypt integration
+- EBS CSI driver for persistent storage
+- Metrics Server for HPA
 
-This includes:
-- Architecture overview
-- Prerequisites and setup
-- Deployment instructions
-- Configuration options
-- Common operations
-- Troubleshooting guide
+**Optional Components:**
+- PostgreSQL database (RDS)
+- Redis cache (ElastiCache)
+- Shared storage (EFS)
+- Bastion host for SSH/EFS access
+- Observability stack (Prometheus/Grafana/Loki)
 
-## 🏗️ What's Deployed
+## Key Features
 
-This infrastructure creates:
+- **Multi-Cluster**: Run multiple isolated clusters without conflicts
+- **Modular**: Enable/disable components via flags
+- **Auto-Scaling**: Karpenter for intelligent node provisioning
+- **Automatic HTTPS**: Let's Encrypt + Cloudflare DNS
+- **Clean Teardown**: Full cleanup of all resources
 
-- **EKS Cluster** with Karpenter autoscaling
-- **Traefik Ingress** with automatic HTTPS via Let's Encrypt
-- **Cert-Manager** for SSL certificate management
-- **Metrics Server** for resource monitoring
-- **AWS EBS CSI Driver** for persistent storage
+## Multi-Cluster Support
 
-**Optional components:**
-- **Observability Stack** (Prometheus, Loki, Grafana)
-- **RDS PostgreSQL** database
-- **ElastiCache Redis** cache
-- **EFS** file system
+Each cluster is completely isolated with its own state and resources:
 
-## 🎯 Key Features
+```bash
+# Cluster 1: Development
+./setup.sh myapp dev && terraform apply
 
-- ✅ **Fully Modular**: Enable/disable components via feature flags
-- ✅ **Production-Ready**: Best practices for security, HA, and cost optimization
-- ✅ **Auto-Scaling**: Karpenter for intelligent node provisioning
-- ✅ **Automatic HTTPS**: Let's Encrypt + Cloudflare DNS automation
-- ✅ **GitOps-Ready**: Structured for easy CI/CD integration
-- ✅ **Well Documented**: Comprehensive guides and examples
+# Cluster 2: Staging
+./setup.sh myapp staging && terraform apply
 
-## 🛠️ Prerequisites
+# List all clusters
+make list-clusters
+```
+
+## Cleanup
+
+```bash
+# Full teardown (handles orphaned resources)
+./cleanup.sh
+
+# Non-interactive for CI/CD
+./cleanup.sh -y --reset-state
+```
+
+## Documentation
+
+Full documentation: [`terraform/README.md`](./terraform/README.md)
+
+## Prerequisites
 
 - Terraform >= 1.6.0
 - AWS CLI configured
 - kubectl
 - Helm 3
 
-See [`terraform/README.md`](./terraform/README.md) for detailed setup instructions.
+## Repository Structure
 
-## 📝 License
-
-Internal infrastructure repository.
-
----
-
-**For detailed documentation, see [`terraform/README.md`](./terraform/README.md)**
+```
+exystem/
+├── terraform/
+│   ├── modules/
+│   │   ├── networking/    # VPC, subnets
+│   │   ├── eks/           # EKS cluster, IAM
+│   │   ├── karpenter/     # Node autoscaling
+│   │   ├── addons/        # Traefik, cert-manager
+│   │   ├── observability/ # Prometheus, Grafana, Loki
+│   │   ├── rds/           # PostgreSQL
+│   │   ├── elasticache/   # Redis
+│   │   ├── efs/           # Shared storage
+│   │   └── bastion/       # SSH access host
+│   ├── setup.sh           # Cluster initialization
+│   ├── plan.sh            # Enhanced plan view
+│   ├── cleanup.sh         # Complete teardown
+│   └── Makefile           # Helper commands
+└── README.md
+```
