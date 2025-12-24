@@ -319,3 +319,31 @@ variable "efs_provisioned_throughput_in_mibps" {
   type        = number
   default     = null
 }
+
+################################################################################
+# Bastion Configuration
+################################################################################
+
+variable "enable_bastion" {
+  description = "Enable bastion host for EFS access and debugging"
+  type        = bool
+  default     = false
+}
+
+variable "bastion_instance_type" {
+  description = "EC2 instance type for bastion host"
+  type        = string
+  default     = "t3.micro"
+}
+
+variable "bastion_allowed_ssh_cidrs" {
+  description = "CIDR blocks allowed to SSH to the bastion host"
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "bastion_efs_mount_path" {
+  description = "Path to mount EFS on the bastion host"
+  type        = string
+  default     = "/mnt/efs"
+}

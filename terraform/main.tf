@@ -146,7 +146,7 @@ module "karpenter" {
   cluster_version          = var.cluster_version
   oidc_provider_arn        = module.eks.oidc_provider_arn
   node_iam_role_arn        = module.eks.karpenter_node_iam_role_arn
-  instance_profile_name    = module.eks.karpenter_instance_profile_name
+  node_iam_role_name       = module.eks.karpenter_node_iam_role_name
   irsa_arn                 = module.eks.karpenter_irsa_arn
   queue_name               = module.eks.karpenter_queue_name
   namespace                = var.karpenter_namespace
@@ -276,4 +276,29 @@ module "efs" {
   provisioned_throughput_in_mibps   = var.efs_provisioned_throughput_in_mibps
 
   tags = local.common_tags
+}
+
+################################################################################
+# Bastion Host (Optional - for EFS access and debugging)
+################################################################################
+
+module "bastion" {
+  count  = var.enable_bastion ? 1 : 0
+  source = "./modules/bastion"
+
+  name                          = local.name
+  vpc_id                        = module.networking.vpc_id
+  subnet_id                     = module.networking.public_subnet_ids[0]
+  instance_type                 = var.bastion_instance_type
+  allowed_ssh_cidrs             = var.bastion_allowed_ssh_cidrs
+  additional_security_group_ids = []
+
+  # EFS configuration (only if EFS is enabled)
+  efs_id                = var.enable_efs ? module.efs[0].file_system_id : ""
+  efs_mount_path        = var.bastion_efs_mount_path
+  efs_security_group_id = var.enable_efs ? module.efs[0].security_group_id : null
+
+  tags = local.common_tags
+
+  depends_on = [module.efs]
 }

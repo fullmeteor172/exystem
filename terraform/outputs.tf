@@ -128,3 +128,40 @@ output "grafana_admin_password" {
   value       = var.enable_observability ? module.observability[0].grafana_admin_password : null
   sensitive   = true
 }
+
+################################################################################
+# Bastion Outputs
+################################################################################
+
+output "bastion_public_ip" {
+  description = "Public IP of the bastion host"
+  value       = var.enable_bastion ? module.bastion[0].public_ip : null
+}
+
+output "bastion_ssh_command" {
+  description = "Command to SSH to the bastion"
+  value       = var.enable_bastion ? module.bastion[0].ssh_command : null
+}
+
+output "bastion_get_key_command" {
+  description = "Command to retrieve SSH key from Secrets Manager"
+  value       = var.enable_bastion ? module.bastion[0].get_key_command : null
+}
+
+output "bastion_ssm_command" {
+  description = "Command to connect via SSM (no SSH key needed)"
+  value       = var.enable_bastion ? module.bastion[0].ssm_command : null
+}
+
+################################################################################
+# Quick Reference
+################################################################################
+
+output "quick_start" {
+  description = "Quick start commands after deployment"
+  value = {
+    configure_kubectl = var.assume_role_arn != "" ? "aws eks update-kubeconfig --region ${var.aws_region} --name ${local.name} --role-arn ${var.assume_role_arn}" : "aws eks update-kubeconfig --region ${var.aws_region} --name ${local.name}"
+    verify_cluster    = "kubectl get nodes"
+    check_karpenter   = "kubectl get nodepools,ec2nodeclasses"
+  }
+}
