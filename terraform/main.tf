@@ -294,6 +294,7 @@ module "bastion" {
   additional_security_group_ids = []
 
   # EFS configuration (only if EFS is enabled)
+  enable_efs            = var.enable_efs
   efs_id                = var.enable_efs ? module.efs[0].file_system_id : ""
   efs_mount_path        = var.bastion_efs_mount_path
   efs_security_group_id = var.enable_efs ? module.efs[0].security_group_id : null

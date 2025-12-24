@@ -194,7 +194,7 @@ resource "aws_instance" "bastion" {
 ################################################################################
 
 resource "aws_security_group_rule" "efs_ingress_from_bastion" {
-  count = var.efs_security_group_id != null ? 1 : 0
+  count = var.enable_efs ? 1 : 0
 
   type                     = "ingress"
   from_port                = 2049

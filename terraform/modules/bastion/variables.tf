@@ -31,6 +31,12 @@ variable "additional_security_group_ids" {
   default     = []
 }
 
+variable "enable_efs" {
+  description = "Whether EFS is enabled (controls security group rule creation)"
+  type        = bool
+  default     = false
+}
+
 variable "efs_id" {
   description = "EFS file system ID to mount (optional)"
   type        = string
