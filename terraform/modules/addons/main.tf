@@ -314,6 +314,7 @@ resource "helm_release" "cert_manager" {
     yamlencode({
       crds = {
         enabled = true
+        keep    = var.cert_manager_keep_crds
       }
       global = {
         leaderElection = {

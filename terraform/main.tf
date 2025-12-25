@@ -154,6 +154,7 @@ module "karpenter" {
   capacity_types           = var.karpenter_node_capacity_type
   subnet_ids               = module.networking.private_subnet_ids
   security_group_ids       = [module.eks.node_security_group_id]
+  aws_region               = var.aws_region
 
   # Initial node group configuration
   initial_instance_type = var.karpenter_initial_instance_type

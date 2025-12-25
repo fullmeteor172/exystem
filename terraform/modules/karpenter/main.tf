@@ -61,8 +61,12 @@ resource "helm_release" "karpenter" {
   wait          = true
   wait_for_jobs = true
 
-  # Wait for managed node group to be ready
-  depends_on = [aws_eks_node_group.karpenter_initial]
+  # Wait for managed node group to be ready (create)
+  # Wait for node cleanup to complete (destroy)
+  depends_on = [
+    aws_eks_node_group.karpenter_initial,
+    time_sleep.wait_for_node_cleanup
+  ]
 
   values = [
     yamlencode({
@@ -243,4 +247,67 @@ resource "kubectl_manifest" "karpenter_node_pool" {
   })
 
   depends_on = [kubectl_manifest.karpenter_node_class]
+}
+
+################################################################################
+# Karpenter Node Cleanup on Destroy
+# This ensures all Karpenter-provisioned EC2 instances are terminated before
+# the cluster and networking resources are destroyed
+################################################################################
+
+resource "null_resource" "karpenter_node_cleanup" {
+  # Trigger on cluster name to ensure this runs for the right cluster
+  triggers = {
+    cluster_name = var.cluster_name
+    aws_region   = var.aws_region
+  }
+
+  # This provisioner runs ONLY during terraform destroy
+  # It terminates all EC2 instances tagged with karpenter.sh/nodepool
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<-EOT
+      echo "Cleaning up Karpenter-provisioned nodes for cluster: ${self.triggers.cluster_name}"
+
+      # Find all Karpenter-provisioned instances (tagged with karpenter.sh/nodepool)
+      INSTANCE_IDS=$(aws ec2 describe-instances \
+        --region ${self.triggers.aws_region} \
+        --filters "Name=tag:karpenter.sh/nodepool,Values=*" \
+                  "Name=tag:karpenter.sh/discovery,Values=${self.triggers.cluster_name}" \
+                  "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+        --query "Reservations[].Instances[].InstanceId" \
+        --output text 2>/dev/null || echo "")
+
+      if [ -n "$INSTANCE_IDS" ] && [ "$INSTANCE_IDS" != "None" ]; then
+        echo "Found Karpenter nodes to terminate: $INSTANCE_IDS"
+        aws ec2 terminate-instances \
+          --region ${self.triggers.aws_region} \
+          --instance-ids $INSTANCE_IDS
+
+        echo "Waiting for instances to terminate..."
+        aws ec2 wait instance-terminated \
+          --region ${self.triggers.aws_region} \
+          --instance-ids $INSTANCE_IDS || true
+
+        echo "Karpenter nodes terminated successfully"
+      else
+        echo "No Karpenter-provisioned nodes found to clean up"
+      fi
+    EOT
+  }
+
+  # Ensure this runs after NodePool and EC2NodeClass are destroyed
+  # but before the Helm release (which needs the cluster to exist)
+  depends_on = [
+    kubectl_manifest.karpenter_node_pool,
+    kubectl_manifest.karpenter_node_class
+  ]
+}
+
+# Wait for node cleanup to complete before destroying Helm release
+resource "time_sleep" "wait_for_node_cleanup" {
+  depends_on = [null_resource.karpenter_node_cleanup]
+
+  # Only used during destroy - gives time for instance termination to propagate
+  destroy_duration = "30s"
 }
