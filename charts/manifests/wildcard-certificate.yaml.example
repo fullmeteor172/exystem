@@ -1,0 +1,29 @@
+################################################################################
+# Wildcard Certificate Template
+#
+# Copy this file, update the domain, and apply to your cluster.
+# This creates a wildcard certificate that can be used by all ingresses.
+################################################################################
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-cert
+  namespace: traefik
+spec:
+  secretName: wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - example.com        # Update with your domain
+    - "*.example.com"    # Wildcard for subdomains
+---
+# Default TLS Store for Traefik
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: traefik
+spec:
+  defaultCertificate:
+    secretName: wildcard-tls

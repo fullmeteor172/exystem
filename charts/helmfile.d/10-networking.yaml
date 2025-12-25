@@ -1,0 +1,74 @@
+################################################################################
+# Networking Layer - Ingress and Load Balancing
+################################################################################
+
+releases:
+  # Traefik Ingress Controller
+  - name: traefik
+    namespace: traefik
+    createNamespace: true
+    chart: traefik/traefik
+    version: "32.1.1"
+    labels:
+      layer: networking
+      component: ingress
+    values:
+      - ../values/traefik.yaml
+      - deployment:
+          replicas: {{ .Values.traefik.replicas | default 2 }}
+        service:
+          type: LoadBalancer
+          annotations:
+            # AWS NLB annotations
+            service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+            service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+            service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+        ports:
+          web:
+            forwardedHeaders:
+              trustedIPs: {{ .Values.cloudflare.trustedIPs | toYaml | nindent 16 }}
+            redirectTo:
+              port: websecure
+          websecure:
+            forwardedHeaders:
+              trustedIPs: {{ .Values.cloudflare.trustedIPs | toYaml | nindent 16 }}
+            tls:
+              enabled: true
+        ingressRoute:
+          dashboard:
+            enabled: false
+        providers:
+          kubernetesCRD:
+            enabled: true
+          kubernetesIngress:
+            enabled: true
+            publishedService:
+              enabled: true
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+        affinity:
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                      - key: app.kubernetes.io/name
+                        operator: In
+                        values:
+                          - traefik
+                  topologyKey: kubernetes.io/hostname
+        logs:
+          general:
+            level: INFO
+          access:
+            enabled: true
+        globalArguments: []
+        additionalArguments:
+          - "--serverstransport.insecureskipverify=true"
+          - "--providers.kubernetesingress.ingressclass=traefik"

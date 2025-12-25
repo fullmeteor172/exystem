@@ -1,0 +1,76 @@
+################################################################################
+# GitOps Layer - Continuous Deployment
+################################################################################
+
+releases:
+  # ArgoCD - GitOps Continuous Deployment
+  - name: argocd
+    namespace: argocd
+    createNamespace: true
+    chart: argo/argo-cd
+    version: "7.7.5"
+    labels:
+      layer: gitops
+      component: argocd
+    condition: argocd.enabled
+    timeout: 600
+    wait: true
+    values:
+      - global:
+          domain: argocd.{{ .Values.domain }}
+        configs:
+          params:
+            server.insecure: true
+          cm:
+            url: https://argocd.{{ .Values.domain }}
+            application.instanceLabelKey: argocd.argoproj.io/instance
+          secret:
+            createSecret: true
+        server:
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            annotations:
+              traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
+            hosts:
+              - argocd.{{ .Values.domain }}
+            tls:
+              - secretName: wildcard-tls
+                hosts:
+                  - argocd.{{ .Values.domain }}
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        controller:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+        repoServer:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        applicationSet:
+          enabled: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+        notifications:
+          enabled: false
+        dex:
+          enabled: false

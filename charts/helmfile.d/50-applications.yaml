@@ -1,0 +1,24 @@
+################################################################################
+# Applications Layer - User Applications
+#
+# Add your application releases here.
+# This is intentionally empty - applications will be deployed via ArgoCD
+# or added here as needed.
+################################################################################
+
+releases: []
+
+# Example application release:
+# releases:
+#   - name: my-app
+#     namespace: my-app
+#     createNamespace: true
+#     chart: ./subcharts/my-app
+#     labels:
+#       layer: applications
+#       component: my-app
+#     values:
+#       - replicas: {{ .Values.myApp.replicas | default 2 }}
+#         image:
+#           repository: my-registry/my-app
+#           tag: {{ .Values.myApp.imageTag }}

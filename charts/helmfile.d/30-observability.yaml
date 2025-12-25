@@ -1,0 +1,199 @@
+################################################################################
+# Observability Layer - Monitoring, Logging, and Alerting
+################################################################################
+
+releases:
+  # Kube Prometheus Stack - Prometheus, Grafana, Alertmanager
+  - name: prometheus
+    namespace: observability
+    createNamespace: true
+    chart: prometheus-community/kube-prometheus-stack
+    version: "65.8.1"
+    labels:
+      layer: observability
+      component: prometheus-stack
+    condition: observability.enabled
+    timeout: 600
+    wait: true
+    values:
+      - prometheus:
+          prometheusSpec:
+            retention: {{ .Values.prometheus.retentionDays }}d
+            retentionSize: "45GB"
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp3
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: {{ .Values.prometheus.storageSize }}
+            resources:
+              requests:
+                cpu: 200m
+                memory: 512Mi
+              limits:
+                cpu: 1000m
+                memory: 2Gi
+        grafana:
+          enabled: true
+          adminUser: admin
+          adminPassword: {{ .Values.grafana.adminPassword | default "changeme" }}
+          persistence:
+            enabled: true
+            storageClassName: gp3
+            size: 10Gi
+          additionalDataSources:
+            - name: Loki
+              type: loki
+              url: http://loki:3100
+              access: proxy
+              isDefault: false
+          dashboardProviders:
+            dashboardproviders.yaml:
+              apiVersion: 1
+              providers:
+                - name: default
+                  orgId: 1
+                  folder: ""
+                  type: file
+                  disableDeletion: false
+                  editable: true
+                  options:
+                    path: /var/lib/grafana/dashboards/default
+          dashboards:
+            default:
+              kubernetes-cluster:
+                gnetId: 7249
+                revision: 1
+                datasource: Prometheus
+              node-exporter:
+                gnetId: 1860
+                revision: 37
+                datasource: Prometheus
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            annotations:
+              traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
+            hosts:
+              - grafana.{{ .Values.domain }}
+            tls:
+              - secretName: wildcard-tls
+                hosts:
+                  - grafana.{{ .Values.domain }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+        alertmanager:
+          enabled: true
+          alertmanagerSpec:
+            storage:
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: gp3
+                  accessModes:
+                    - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 5Gi
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                cpu: 200m
+                memory: 256Mi
+        nodeExporter:
+          enabled: true
+        kubeStateMetrics:
+          enabled: true
+
+  # Loki - Log Aggregation
+  - name: loki
+    namespace: observability
+    chart: grafana/loki
+    version: "6.22.0"
+    labels:
+      layer: observability
+      component: loki
+    condition: observability.enabled
+    timeout: 600
+    wait: true
+    values:
+      - deploymentMode: SingleBinary
+        loki:
+          auth_enabled: false
+          commonConfig:
+            replication_factor: 1
+          storage:
+            type: filesystem
+          schemaConfig:
+            configs:
+              - from: "2024-01-01"
+                store: tsdb
+                object_store: filesystem
+                schema: v13
+                index:
+                  prefix: index_
+                  period: 24h
+          limits_config:
+            retention_period: {{ mul .Values.loki.retentionDays 24 }}h
+        singleBinary:
+          replicas: 1
+          persistence:
+            enabled: true
+            storageClass: gp3
+            size: 20Gi
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+        read:
+          replicas: 0
+        write:
+          replicas: 0
+        backend:
+          replicas: 0
+        chunksCache:
+          enabled: false
+        resultsCache:
+          enabled: false
+        gateway:
+          enabled: false
+        test:
+          enabled: false
+        monitoring:
+          selfMonitoring:
+            enabled: false
+          lokiCanary:
+            enabled: false
+
+  # Promtail - Log Collector
+  - name: promtail
+    namespace: observability
+    chart: grafana/promtail
+    version: "6.16.6"
+    labels:
+      layer: observability
+      component: promtail
+    condition: observability.enabled
+    values:
+      - config:
+          clients:
+            - url: http://loki:3100/loki/api/v1/push
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

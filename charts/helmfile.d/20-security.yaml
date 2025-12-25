@@ -1,0 +1,88 @@
+################################################################################
+# Security Layer - Certificate Management and DNS
+################################################################################
+
+releases:
+  # Cert-Manager - Certificate Automation
+  - name: cert-manager
+    namespace: cert-manager
+    createNamespace: true
+    chart: jetstack/cert-manager
+    version: "v1.16.2"
+    labels:
+      layer: security
+      component: cert-manager
+    values:
+      - crds:
+          enabled: true
+          keep: false
+        global:
+          leaderElection:
+            namespace: cert-manager
+        resources:
+          requests:
+            cpu: 10m
+            memory: 64Mi
+          limits:
+            cpu: 100m
+            memory: 256Mi
+        webhook:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+        cainjector:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+    hooks:
+      - events: ["postsync"]
+        showlogs: true
+        command: "kubectl"
+        args:
+          - "apply"
+          - "-f"
+          - "../manifests/cluster-issuer.yaml"
+
+  # External-DNS - Automatic DNS Record Management
+  - name: external-dns
+    namespace: external-dns
+    createNamespace: true
+    chart: kubernetes-sigs/external-dns
+    version: "1.15.0"
+    labels:
+      layer: security
+      component: external-dns
+    condition: externalDns.enabled
+    values:
+      - provider:
+          name: cloudflare
+        env:
+          - name: CF_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: cloudflare-api-token
+                key: api-token
+        extraArgs:
+          - "--cloudflare-dns-records-per-page=5000"
+        domainFilters:
+          - {{ .Values.domain }}
+        policy: sync
+        sources:
+          - ingress
+          - service
+        txtOwnerId: {{ .Values.clusterName }}
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi

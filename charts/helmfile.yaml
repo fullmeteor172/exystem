@@ -1,0 +1,64 @@
+################################################################################
+# Helmfile - Provider-Agnostic Kubernetes Workloads
+#
+# This file orchestrates all Kubernetes workloads deployed on top of
+# the infrastructure provisioned by Terraform.
+#
+# Usage:
+#   helmfile sync                    # Deploy all releases
+#   helmfile -e staging sync         # Deploy to staging environment
+#   helmfile diff                    # Preview changes
+#   helmfile destroy                 # Remove all releases
+#   helmfile -l layer=networking sync # Deploy only networking layer
+################################################################################
+
+# Helm repositories
+repositories:
+  - name: traefik
+    url: https://traefik.github.io/charts
+  - name: jetstack
+    url: https://charts.jetstack.io
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
+  - name: grafana
+    url: https://grafana.github.io/helm-charts
+  - name: kubernetes-sigs
+    url: https://kubernetes-sigs.github.io/external-dns
+  - name: argo
+    url: https://argoproj.github.io/argo-helm
+
+# Environment configuration
+environments:
+  default:
+    values:
+      - values/common.yaml
+      - values/{{ .Environment.Name }}.yaml
+    secrets:
+      - secrets/{{ .Environment.Name }}.yaml
+  dev:
+    values:
+      - values/common.yaml
+      - values/dev.yaml
+    secrets:
+      - secrets/dev.yaml
+  staging:
+    values:
+      - values/common.yaml
+      - values/staging.yaml
+    secrets:
+      - secrets/staging.yaml
+  prod:
+    values:
+      - values/common.yaml
+      - values/prod.yaml
+    secrets:
+      - secrets/prod.yaml
+
+# Include layered helmfile configurations
+helmfiles:
+  - path: helmfile.d/00-core.yaml
+  - path: helmfile.d/10-networking.yaml
+  - path: helmfile.d/20-security.yaml
+  - path: helmfile.d/30-observability.yaml
+  - path: helmfile.d/40-gitops.yaml
+  - path: helmfile.d/50-applications.yaml
