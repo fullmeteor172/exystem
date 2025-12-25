@@ -213,6 +213,7 @@ module "observability" {
   prometheus_retention_days = var.prometheus_retention_days
   prometheus_storage_size   = var.prometheus_storage_size
   domain_name               = var.domain_name
+  enable_cert_manager       = var.cloudflare_api_token != "" && var.cloudflare_zone_id != ""
   tags                      = local.common_tags
 
   depends_on = [module.addons]

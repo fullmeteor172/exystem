@@ -516,7 +516,6 @@ resource "helm_release" "external_dns" {
       ]
 
       extraArgs = [
-        "--cloudflare-proxied",
         "--cloudflare-dns-records-per-page=5000"
       ]
 
