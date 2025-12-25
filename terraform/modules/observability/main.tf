@@ -352,6 +352,8 @@ resource "helm_release" "promtail" {
 ################################################################################
 
 resource "kubectl_manifest" "wildcard_certificate" {
+  count = var.enable_cert_manager ? 1 : 0
+
   yaml_body = yamlencode({
     apiVersion = "cert-manager.io/v1"
     kind       = "Certificate"
@@ -372,5 +374,8 @@ resource "kubectl_manifest" "wildcard_certificate" {
     }
   })
 
-  depends_on = [kubernetes_namespace.observability]
+  depends_on = [
+    kubernetes_namespace.observability,
+    helm_release.kube_prometheus_stack
+  ]
 }

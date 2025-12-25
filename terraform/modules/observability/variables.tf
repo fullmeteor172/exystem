@@ -39,6 +39,12 @@ variable "domain_name" {
   type        = string
 }
 
+variable "enable_cert_manager" {
+  description = "Whether cert-manager is configured (to create certificates)"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)
