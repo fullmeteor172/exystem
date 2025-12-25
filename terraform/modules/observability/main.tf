@@ -132,6 +132,8 @@ resource "helm_release" "kube_prometheus_stack" {
           ingressClassName = "traefik"
           annotations = {
             # Use wildcard certificate instead of requesting a new one
+            # Prevent redirect loop when behind Cloudflare proxy
+            "traefik.ingress.kubernetes.io/router.entrypoints" = "web,websecure"
           }
           hosts = ["grafana.${var.domain_name}"]
           tls = [
