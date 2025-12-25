@@ -119,7 +119,7 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled    = true
   performance_insights_retention_period = 7
 
-  deletion_protection = true
+  deletion_protection = var.deletion_protection
   skip_final_snapshot = false
   final_snapshot_identifier = "${var.identifier}-final-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
 

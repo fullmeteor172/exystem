@@ -252,6 +252,12 @@ variable "rds_multi_az" {
   default     = false
 }
 
+variable "rds_deletion_protection" {
+  description = "Enable deletion protection for RDS (disable for dev/sandbox)"
+  type        = bool
+  default     = true
+}
+
 ################################################################################
 # ElastiCache Configuration
 ################################################################################

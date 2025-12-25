@@ -232,6 +232,7 @@ module "rds" {
 
   backup_retention_period = var.rds_backup_retention_period
   multi_az                = var.rds_multi_az
+  deletion_protection     = var.rds_deletion_protection
 
   tags = local.common_tags
 }
