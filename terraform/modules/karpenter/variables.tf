@@ -3,6 +3,11 @@ variable "cluster_name" {
   type        = string
 }
 
+variable "aws_region" {
+  description = "AWS region for CLI commands during destroy"
+  type        = string
+}
+
 variable "cluster_endpoint" {
   description = "Endpoint for EKS control plane"
   type        = string

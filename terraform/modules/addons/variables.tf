@@ -88,3 +88,9 @@ variable "enable_automatic_dns" {
   type        = bool
   default     = true
 }
+
+variable "cert_manager_keep_crds" {
+  description = "Keep cert-manager CRDs on Helm uninstall. Set to false to allow full cleanup during terraform destroy."
+  type        = bool
+  default     = false
+}
