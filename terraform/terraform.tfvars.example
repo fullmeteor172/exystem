@@ -47,6 +47,14 @@ enable_cluster_creator_admin_permissions = true
 
 karpenter_namespace = "karpenter"
 
+# Initial node group (runs Karpenter controller)
+# Default: 3x t3.medium = 6 vCPU, 12GB RAM total
+karpenter_initial_instance_type = "t3.medium"
+karpenter_initial_desired_size  = 3
+karpenter_initial_min_size      = 2
+karpenter_initial_max_size      = 5
+
+# Instance types Karpenter can provision for workloads
 karpenter_node_instance_types = [
   "t3.medium",
   "t3.large",
@@ -58,6 +66,7 @@ karpenter_node_instance_types = [
   "t3a.2xlarge"
 ]
 
+# Capacity type preference (spot is cheaper, on-demand is more reliable)
 karpenter_node_capacity_type = ["spot", "on-demand"]
 
 ################################################################################
@@ -92,6 +101,10 @@ acme_server = "https://acme-v02.api.letsencrypt.org/directory"  # Production
 
 # Your primary domain (managed in Cloudflare)
 domain_name = "example.com"
+
+# Set to false to manage DNS records manually in Cloudflare
+# When false, you must create CNAME records pointing to the load balancer
+enable_automatic_dns = true
 
 ################################################################################
 # Observability Configuration

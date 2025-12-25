@@ -82,3 +82,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_automatic_dns" {
+  description = "Enable automatic DNS record creation via external-dns"
+  type        = bool
+  default     = true
+}
