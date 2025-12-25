@@ -74,3 +74,28 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# Initial node group configuration
+variable "initial_instance_type" {
+  description = "Instance type for initial Karpenter node group"
+  type        = string
+  default     = "t3.medium"
+}
+
+variable "initial_desired_size" {
+  description = "Desired number of nodes in initial Karpenter node group"
+  type        = number
+  default     = 3
+}
+
+variable "initial_min_size" {
+  description = "Minimum number of nodes in initial Karpenter node group"
+  type        = number
+  default     = 2
+}
+
+variable "initial_max_size" {
+  description = "Maximum number of nodes in initial Karpenter node group"
+  type        = number
+  default     = 5
+}

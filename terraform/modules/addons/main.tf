@@ -166,11 +166,69 @@ resource "helm_release" "traefik" {
       }
       ports = {
         web = {
+          # Trust X-Forwarded-* headers from Cloudflare proxy
+          # This prevents redirect loops when Cloudflare terminates SSL
+          forwardedHeaders = {
+            trustedIPs = [
+              # Cloudflare IP ranges (IPv4)
+              "173.245.48.0/20",
+              "103.21.244.0/22",
+              "103.22.200.0/22",
+              "103.31.4.0/22",
+              "141.101.64.0/18",
+              "108.162.192.0/18",
+              "190.93.240.0/20",
+              "188.114.96.0/20",
+              "197.234.240.0/22",
+              "198.41.128.0/17",
+              "162.158.0.0/15",
+              "104.16.0.0/13",
+              "104.24.0.0/14",
+              "172.64.0.0/13",
+              "131.0.72.0/22",
+              # Cloudflare IP ranges (IPv6)
+              "2400:cb00::/32",
+              "2606:4700::/32",
+              "2803:f800::/32",
+              "2405:b500::/32",
+              "2405:8100::/32",
+              "2a06:98c0::/29",
+              "2c0f:f248::/32"
+            ]
+          }
           redirectTo = {
             port = "websecure"
           }
         }
         websecure = {
+          forwardedHeaders = {
+            trustedIPs = [
+              # Cloudflare IP ranges (IPv4)
+              "173.245.48.0/20",
+              "103.21.244.0/22",
+              "103.22.200.0/22",
+              "103.31.4.0/22",
+              "141.101.64.0/18",
+              "108.162.192.0/18",
+              "190.93.240.0/20",
+              "188.114.96.0/20",
+              "197.234.240.0/22",
+              "198.41.128.0/17",
+              "162.158.0.0/15",
+              "104.16.0.0/13",
+              "104.24.0.0/14",
+              "172.64.0.0/13",
+              "131.0.72.0/22",
+              # Cloudflare IP ranges (IPv6)
+              "2400:cb00::/32",
+              "2606:4700::/32",
+              "2803:f800::/32",
+              "2405:b500::/32",
+              "2405:8100::/32",
+              "2a06:98c0::/29",
+              "2c0f:f248::/32"
+            ]
+          }
           tls = {
             enabled = true
           }
@@ -425,10 +483,11 @@ resource "kubectl_manifest" "traefik_default_tls" {
 
 ################################################################################
 # External DNS (auto-creates DNS records from Ingress resources)
+# Only deployed when enable_automatic_dns is true and Cloudflare credentials are provided
 ################################################################################
 
 resource "helm_release" "external_dns" {
-  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
+  count = var.enable_automatic_dns && var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   name             = "external-dns"
   namespace        = "external-dns"
@@ -486,7 +545,7 @@ resource "helm_release" "external_dns" {
 
 # Cloudflare secret for external-dns namespace
 resource "kubernetes_namespace" "external_dns" {
-  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
+  count = var.enable_automatic_dns && var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   metadata {
     name = "external-dns"
@@ -494,7 +553,7 @@ resource "kubernetes_namespace" "external_dns" {
 }
 
 resource "kubernetes_secret" "cloudflare_api_token_external_dns" {
-  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
+  count = var.enable_automatic_dns && var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
 
   metadata {
     name      = "cloudflare-api-token"

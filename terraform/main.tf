@@ -155,6 +155,12 @@ module "karpenter" {
   subnet_ids               = module.networking.private_subnet_ids
   security_group_ids       = [module.eks.node_security_group_id]
 
+  # Initial node group configuration
+  initial_instance_type = var.karpenter_initial_instance_type
+  initial_desired_size  = var.karpenter_initial_desired_size
+  initial_min_size      = var.karpenter_initial_min_size
+  initial_max_size      = var.karpenter_initial_max_size
+
   tags = local.common_tags
 
   depends_on = [module.eks]
@@ -181,6 +187,7 @@ module "addons" {
   acme_email              = var.acme_email
   acme_server             = var.acme_server
   domain_name             = var.domain_name
+  enable_automatic_dns    = var.enable_automatic_dns
 
   enable_efs              = var.enable_efs
   efs_file_system_id      = var.enable_efs ? module.efs[0].file_system_id : null

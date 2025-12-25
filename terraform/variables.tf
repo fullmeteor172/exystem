@@ -108,6 +108,31 @@ variable "karpenter_node_capacity_type" {
   default     = ["spot", "on-demand"]
 }
 
+# Initial node group configuration (where Karpenter itself runs)
+variable "karpenter_initial_instance_type" {
+  description = "Instance type for initial Karpenter node group"
+  type        = string
+  default     = "t3.medium"  # 2 vCPU, 4GB RAM
+}
+
+variable "karpenter_initial_desired_size" {
+  description = "Desired number of nodes in initial Karpenter node group"
+  type        = number
+  default     = 3
+}
+
+variable "karpenter_initial_min_size" {
+  description = "Minimum number of nodes in initial Karpenter node group"
+  type        = number
+  default     = 2
+}
+
+variable "karpenter_initial_max_size" {
+  description = "Maximum number of nodes in initial Karpenter node group"
+  type        = number
+  default     = 5
+}
+
 ################################################################################
 # Addons Configuration
 ################################################################################
@@ -125,7 +150,7 @@ variable "cert_manager_namespace" {
 }
 
 variable "cloudflare_api_token" {
-  description = "Cloudflare API token for cert-manager DNS01 challenges"
+  description = "Cloudflare API token for cert-manager DNS01 challenges and external-dns"
   type        = string
   sensitive   = true
   default     = ""
@@ -141,6 +166,12 @@ variable "cloudflare_email" {
   description = "Cloudflare email for cert-manager"
   type        = string
   default     = ""
+}
+
+variable "enable_automatic_dns" {
+  description = "Enable automatic DNS record creation via external-dns. When false, you must manually create DNS records in Cloudflare pointing to the load balancer."
+  type        = bool
+  default     = true
 }
 
 variable "acme_email" {
