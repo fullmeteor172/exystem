@@ -296,12 +296,9 @@ resource "null_resource" "karpenter_node_cleanup" {
     EOT
   }
 
-  # Ensure this runs after NodePool and EC2NodeClass are destroyed
-  # but before the Helm release (which needs the cluster to exist)
-  depends_on = [
-    kubectl_manifest.karpenter_node_pool,
-    kubectl_manifest.karpenter_node_class
-  ]
+  # No dependencies - this resource is created early and destroyed late
+  # The destroy provisioner runs after NodePool/EC2NodeClass are destroyed
+  # (because helm_release depends on time_sleep which depends on this)
 }
 
 # Wait for node cleanup to complete before destroying Helm release
