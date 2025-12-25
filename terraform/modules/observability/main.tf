@@ -131,12 +131,12 @@ resource "helm_release" "kube_prometheus_stack" {
           enabled          = true
           ingressClassName = "traefik"
           annotations = {
-            "cert-manager.io/cluster-issuer" = "letsencrypt-prod"
+            # Use wildcard certificate instead of requesting a new one
           }
           hosts = ["grafana.${var.domain_name}"]
           tls = [
             {
-              secretName = "grafana-tls"
+              secretName = "wildcard-tls"
               hosts      = ["grafana.${var.domain_name}"]
             }
           ]
@@ -343,4 +343,32 @@ resource "helm_release" "promtail" {
   ]
 
   depends_on = [helm_release.loki]
+}
+
+################################################################################
+# Wildcard Certificate for Observability Namespace
+################################################################################
+
+resource "kubectl_manifest" "wildcard_certificate" {
+  yaml_body = yamlencode({
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "wildcard-cert"
+      namespace = var.namespace
+    }
+    spec = {
+      secretName = "wildcard-tls"
+      issuerRef = {
+        name = "letsencrypt-prod"
+        kind = "ClusterIssuer"
+      }
+      dnsNames = [
+        var.domain_name,
+        "*.${var.domain_name}"
+      ]
+    }
+  })
+
+  depends_on = [kubernetes_namespace.observability]
 }
