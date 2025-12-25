@@ -82,6 +82,11 @@ resource "helm_release" "efs_csi_driver" {
   chart      = "aws-efs-csi-driver"
   version    = "3.0.8"
 
+  timeout         = 300  # 5 minutes
+  wait            = true
+  atomic          = true
+  cleanup_on_fail = true
+
   values = [
     yamlencode({
       controller = {
@@ -117,6 +122,11 @@ resource "helm_release" "metrics_server" {
   chart      = "metrics-server"
   version    = "3.12.2"
 
+  timeout         = 300  # 5 minutes
+  wait            = true
+  atomic          = true
+  cleanup_on_fail = true
+
   values = [
     yamlencode({
       args = [
@@ -150,6 +160,11 @@ resource "helm_release" "traefik" {
   chart            = "traefik"
   version          = "32.1.1"
   create_namespace = true
+
+  timeout       = 600  # 10 minutes
+  wait          = true
+  atomic        = true  # Rollback on failure to avoid stuck releases
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
@@ -309,6 +324,11 @@ resource "helm_release" "cert_manager" {
   chart            = "cert-manager"
   version          = "v1.16.2"
   create_namespace = true
+
+  timeout         = 600  # 10 minutes
+  wait            = true
+  atomic          = true  # Rollback on failure to avoid stuck releases
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
@@ -496,6 +516,11 @@ resource "helm_release" "external_dns" {
   chart            = "external-dns"
   version          = "1.15.0"
   create_namespace = true
+
+  timeout         = 300  # 5 minutes
+  wait            = true
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({

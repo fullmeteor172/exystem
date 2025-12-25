@@ -30,8 +30,10 @@ resource "helm_release" "kube_prometheus_stack" {
   chart      = "kube-prometheus-stack"
   version    = "65.8.1"
 
-  timeout = 600
-  wait    = true
+  timeout         = 600
+  wait            = true
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
@@ -212,8 +214,10 @@ resource "helm_release" "loki" {
   chart      = "loki"
   version    = "6.22.0"
 
-  timeout = 600
-  wait    = true
+  timeout         = 600
+  wait            = true
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
@@ -321,6 +325,11 @@ resource "helm_release" "promtail" {
   repository = "https://grafana.github.io/helm-charts"
   chart      = "promtail"
   version    = "6.16.6"
+
+  timeout         = 300
+  wait            = true
+  atomic          = true
+  cleanup_on_fail = true
 
   values = [
     yamlencode({
