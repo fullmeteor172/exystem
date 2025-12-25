@@ -55,6 +55,12 @@ variable "multi_az" {
   default     = false
 }
 
+variable "deletion_protection" {
+  description = "Enable deletion protection (disable for dev/sandbox)"
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Additional tags for resources"
   type        = map(string)

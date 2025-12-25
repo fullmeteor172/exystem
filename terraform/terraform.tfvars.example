@@ -130,6 +130,7 @@ rds_master_username = "postgres"
 
 rds_backup_retention_period = 7
 rds_multi_az                = false  # Set to true for production HA
+rds_deletion_protection     = false  # Set to true for production
 
 ################################################################################
 # ElastiCache Configuration
