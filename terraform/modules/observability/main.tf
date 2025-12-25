@@ -279,6 +279,14 @@ resource "helm_release" "loki" {
         replicas = 0
       }
 
+      # Disable caching components (require too much memory for small clusters)
+      chunksCache = {
+        enabled = false
+      }
+      resultsCache = {
+        enabled = false
+      }
+
       gateway = {
         enabled = false
       }

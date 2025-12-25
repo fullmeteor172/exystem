@@ -422,3 +422,90 @@ resource "kubectl_manifest" "traefik_default_tls" {
     kubectl_manifest.wildcard_certificate
   ]
 }
+
+################################################################################
+# External DNS (auto-creates DNS records from Ingress resources)
+################################################################################
+
+resource "helm_release" "external_dns" {
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
+
+  name             = "external-dns"
+  namespace        = "external-dns"
+  repository       = "https://kubernetes-sigs.github.io/external-dns"
+  chart            = "external-dns"
+  version          = "1.15.0"
+  create_namespace = true
+
+  values = [
+    yamlencode({
+      provider = {
+        name = "cloudflare"
+      }
+
+      env = [
+        {
+          name = "CF_API_TOKEN"
+          valueFrom = {
+            secretKeyRef = {
+              name = "cloudflare-api-token"
+              key  = "api-token"
+            }
+          }
+        }
+      ]
+
+      extraArgs = [
+        "--cloudflare-proxied",
+        "--cloudflare-dns-records-per-page=5000"
+      ]
+
+      domainFilters = [var.domain_name]
+
+      policy = "sync"
+
+      sources = ["ingress", "service"]
+
+      txtOwnerId = var.cluster_name
+
+      resources = {
+        requests = {
+          cpu    = "50m"
+          memory = "64Mi"
+        }
+        limits = {
+          cpu    = "200m"
+          memory = "128Mi"
+        }
+      }
+    })
+  ]
+
+  depends_on = [kubernetes_secret.cloudflare_api_token_external_dns]
+}
+
+# Cloudflare secret for external-dns namespace
+resource "kubernetes_namespace" "external_dns" {
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
+
+  metadata {
+    name = "external-dns"
+  }
+}
+
+resource "kubernetes_secret" "cloudflare_api_token_external_dns" {
+  count = var.cloudflare_api_token != "" && var.cloudflare_zone_id != "" ? 1 : 0
+
+  metadata {
+    name      = "cloudflare-api-token"
+    namespace = "external-dns"
+  }
+
+  data = {
+    api-token = var.cloudflare_api_token
+  }
+
+  type = "Opaque"
+
+  depends_on = [kubernetes_namespace.external_dns]
+}
