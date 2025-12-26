@@ -3,7 +3,9 @@
 ################################################################################
 
 releases:
+  #-----------------------------------------------------------------------------
   # ArgoCD - GitOps Continuous Deployment
+  #-----------------------------------------------------------------------------
   - name: argocd
     namespace: argocd
     createNamespace: true
@@ -12,7 +14,7 @@ releases:
     labels:
       layer: gitops
       component: argocd
-    condition: argocd.enabled
+    condition: components.argocd
     timeout: 600
     wait: true
     values:
@@ -20,7 +22,8 @@ releases:
           domain: argocd.{{ .Values.domain }}
         configs:
           params:
-            server.insecure: true
+            # Run in insecure mode when behind TLS-terminating proxy (Traefik)
+            server.insecure: {{ .Values.argocd.insecure | default false }}
           cm:
             url: https://argocd.{{ .Values.domain }}
             application.instanceLabelKey: argocd.argoproj.io/instance
@@ -31,7 +34,7 @@ releases:
             enabled: true
             ingressClassName: traefik
             annotations:
-              traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
             hosts:
               - argocd.{{ .Values.domain }}
             tls:

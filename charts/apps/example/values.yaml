@@ -1,0 +1,25 @@
+# Default values for example application
+# Override these in environments/<env>/values.yaml under apps.example.*
+
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: "alpine"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+ingress:
+  enabled: false
+  # host: example.yourdomain.com

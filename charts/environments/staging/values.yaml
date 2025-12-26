@@ -1,0 +1,39 @@
+################################################################################
+# Staging Environment Values
+################################################################################
+
+#-------------------------------------------------------------------------------
+# Cluster Identity
+#-------------------------------------------------------------------------------
+clusterName: "exystem-staging"
+domain: "staging.example.com"   # CHANGE: Your staging domain
+
+#-------------------------------------------------------------------------------
+# Component Toggles (override common)
+#-------------------------------------------------------------------------------
+components:
+  argocd: true                  # Enable GitOps in staging
+
+#-------------------------------------------------------------------------------
+# Resource Configurations (moderate for staging)
+#-------------------------------------------------------------------------------
+
+traefik:
+  replicas: 2
+
+prometheus:
+  retentionDays: 15
+  storageSize: "30Gi"
+
+grafana:
+  storageSize: "10Gi"
+
+loki:
+  retentionDays: 15             # Match prometheus retention
+  storageSize: "20Gi"
+
+#-------------------------------------------------------------------------------
+# Security Settings
+#-------------------------------------------------------------------------------
+argocd:
+  insecure: true                # Behind Traefik TLS termination

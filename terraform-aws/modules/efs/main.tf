@@ -44,23 +44,27 @@ resource "aws_security_group" "efs" {
 }
 
 resource "aws_security_group_rule" "efs_ingress" {
+  count = length(var.allowed_security_group_ids)
+
   type                     = "ingress"
   from_port                = 2049
   to_port                  = 2049
   protocol                 = "tcp"
   security_group_id        = aws_security_group.efs.id
-  source_security_group_id = var.allowed_security_group_ids[0]
-  description              = "NFS access from EKS nodes"
+  source_security_group_id = var.allowed_security_group_ids[count.index]
+  description              = "NFS access from allowed security group ${count.index + 1}"
 }
 
 resource "aws_security_group_rule" "efs_egress" {
-  type              = "egress"
-  from_port         = 0
-  to_port           = 0
-  protocol          = "-1"
-  security_group_id = aws_security_group.efs.id
-  cidr_blocks       = ["0.0.0.0/0"]
-  description       = "Allow all outbound traffic"
+  count = length(var.allowed_security_group_ids)
+
+  type                     = "egress"
+  from_port                = 2049
+  to_port                  = 2049
+  protocol                 = "tcp"
+  security_group_id        = aws_security_group.efs.id
+  source_security_group_id = var.allowed_security_group_ids[count.index]
+  description              = "NFS response to allowed security group ${count.index + 1}"
 }
 
 ################################################################################

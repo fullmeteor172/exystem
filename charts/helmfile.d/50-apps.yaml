@@ -1,0 +1,28 @@
+################################################################################
+# Applications Layer - User Applications
+#
+# Add your custom applications here, or manage them via ArgoCD.
+# See apps/ directory for example chart structures.
+################################################################################
+
+releases: []
+
+# Example: Deploy a custom application from the apps/ directory
+#
+# releases:
+#   - name: my-app
+#     namespace: my-app
+#     createNamespace: true
+#     chart: ../apps/my-app
+#     labels:
+#       layer: apps
+#       component: my-app
+#     values:
+#       - image:
+#           repository: my-registry/my-app
+#           tag: {{ .Values.apps.myApp.imageTag | default "latest" }}
+#         replicas: {{ .Values.apps.myApp.replicas | default 2 }}
+#         resources:
+#           requests:
+#             cpu: {{ .Values.apps.myApp.resources.requests.cpu | default "100m" }}
+#             memory: {{ .Values.apps.myApp.resources.requests.memory | default "128Mi" }}

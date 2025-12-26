@@ -1,12 +1,11 @@
 ################################################################################
 # Core Layer - Essential Platform Components
-#
-# These are provider-agnostic core components that every cluster needs.
-# Note: Cloud-specific components (CSI drivers) are in Terraform.
 ################################################################################
 
 releases:
-  # Reloader - Automatically restarts pods when ConfigMaps/Secrets change
+  #-----------------------------------------------------------------------------
+  # Reloader - Auto-restart pods when ConfigMaps/Secrets change
+  #-----------------------------------------------------------------------------
   - name: reloader
     namespace: kube-system
     chart: oci://ghcr.io/stakater/charts/reloader
@@ -14,6 +13,7 @@ releases:
     labels:
       layer: core
       component: reloader
+    condition: components.reloader
     values:
       - reloader:
           watchGlobally: true

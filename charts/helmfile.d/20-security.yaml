@@ -3,7 +3,9 @@
 ################################################################################
 
 releases:
-  # Cert-Manager - Certificate Automation
+  #-----------------------------------------------------------------------------
+  # Cert-Manager - TLS Certificate Automation
+  #-----------------------------------------------------------------------------
   - name: cert-manager
     namespace: cert-manager
     createNamespace: true
@@ -12,6 +14,7 @@ releases:
     labels:
       layer: security
       component: cert-manager
+    condition: components.certManager
     values:
       - crds:
           enabled: true
@@ -42,16 +45,10 @@ releases:
             limits:
               cpu: 100m
               memory: 256Mi
-    hooks:
-      - events: ["postsync"]
-        showlogs: true
-        command: "kubectl"
-        args:
-          - "apply"
-          - "-f"
-          - "../manifests/cluster-issuer.yaml"
 
+  #-----------------------------------------------------------------------------
   # External-DNS - Automatic DNS Record Management
+  #-----------------------------------------------------------------------------
   - name: external-dns
     namespace: external-dns
     createNamespace: true
@@ -60,7 +57,7 @@ releases:
     labels:
       layer: security
       component: external-dns
-    condition: externalDns.enabled
+    condition: components.externalDns
     values:
       - provider:
           name: cloudflare

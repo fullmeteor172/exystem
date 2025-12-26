@@ -1,15 +1,14 @@
 ################################################################################
-# Helmfile - Provider-Agnostic Kubernetes Workloads
-#
-# This file orchestrates all Kubernetes workloads deployed on top of
-# the infrastructure provisioned by Terraform.
+# Helmfile - Kubernetes Workload Orchestration
 #
 # Usage:
-#   helmfile sync                    # Deploy all releases
-#   helmfile -e staging sync         # Deploy to staging environment
-#   helmfile diff                    # Preview changes
-#   helmfile destroy                 # Remove all releases
-#   helmfile -l layer=networking sync # Deploy only networking layer
+#   helmfile -e dev sync              # Deploy to development
+#   helmfile -e staging sync          # Deploy to staging
+#   helmfile -e prod sync             # Deploy to production
+#   helmfile -e dev diff              # Preview changes
+#   helmfile -e dev destroy           # Remove all releases
+#   helmfile -e dev -l layer=core sync        # Deploy only core layer
+#   helmfile -e dev -l component=traefik sync # Deploy only traefik
 ################################################################################
 
 # Helm repositories
@@ -29,36 +28,30 @@ repositories:
 
 # Environment configuration
 environments:
-  default:
-    values:
-      - values/common.yaml
-      - values/{{ .Environment.Name }}.yaml
-    secrets:
-      - secrets/{{ .Environment.Name }}.yaml
   dev:
     values:
-      - values/common.yaml
-      - values/dev.yaml
+      - environments/common/values.yaml
+      - environments/dev/values.yaml
     secrets:
-      - secrets/dev.yaml
+      - environments/dev/secrets.yaml
   staging:
     values:
-      - values/common.yaml
-      - values/staging.yaml
+      - environments/common/values.yaml
+      - environments/staging/values.yaml
     secrets:
-      - secrets/staging.yaml
+      - environments/staging/secrets.yaml
   prod:
     values:
-      - values/common.yaml
-      - values/prod.yaml
+      - environments/common/values.yaml
+      - environments/prod/values.yaml
     secrets:
-      - secrets/prod.yaml
+      - environments/prod/secrets.yaml
 
-# Include layered helmfile configurations
+# Layered helmfile configurations
 helmfiles:
   - path: helmfile.d/00-core.yaml
   - path: helmfile.d/10-networking.yaml
   - path: helmfile.d/20-security.yaml
   - path: helmfile.d/30-observability.yaml
   - path: helmfile.d/40-gitops.yaml
-  - path: helmfile.d/50-applications.yaml
+  - path: helmfile.d/50-apps.yaml

@@ -3,7 +3,9 @@
 ################################################################################
 
 releases:
+  #-----------------------------------------------------------------------------
   # Kube Prometheus Stack - Prometheus, Grafana, Alertmanager
+  #-----------------------------------------------------------------------------
   - name: prometheus
     namespace: observability
     createNamespace: true
@@ -11,24 +13,23 @@ releases:
     version: "65.8.1"
     labels:
       layer: observability
-      component: prometheus-stack
-    condition: observability.enabled
+      component: prometheus
+    condition: components.observability
     timeout: 600
     wait: true
     values:
       - prometheus:
           prometheusSpec:
-            retention: {{ .Values.prometheus.retentionDays }}d
-            retentionSize: "45GB"
+            retention: {{ .Values.prometheus.retentionDays | default 15 }}d
             storageSpec:
               volumeClaimTemplate:
                 spec:
-                  storageClassName: gp3
+                  storageClassName: {{ .Values.storage.className | default "gp3" }}
                   accessModes:
                     - ReadWriteOnce
                   resources:
                     requests:
-                      storage: {{ .Values.prometheus.storageSize }}
+                      storage: {{ .Values.prometheus.storageSize | default "50Gi" }}
             resources:
               requests:
                 cpu: 200m
@@ -39,11 +40,14 @@ releases:
         grafana:
           enabled: true
           adminUser: admin
-          adminPassword: {{ .Values.grafana.adminPassword | default "changeme" }}
+          # Password from secrets file, or leave empty for auto-generated
+          {{- if .Values.grafana.adminPassword }}
+          adminPassword: {{ .Values.grafana.adminPassword }}
+          {{- end }}
           persistence:
             enabled: true
-            storageClassName: gp3
-            size: 10Gi
+            storageClassName: {{ .Values.storage.className | default "gp3" }}
+            size: {{ .Values.grafana.storageSize | default "10Gi" }}
           additionalDataSources:
             - name: Loki
               type: loki
@@ -76,7 +80,7 @@ releases:
             enabled: true
             ingressClassName: traefik
             annotations:
-              traefik.ingress.kubernetes.io/router.entrypoints: "web,websecure"
+              traefik.ingress.kubernetes.io/router.entrypoints: websecure
             hosts:
               - grafana.{{ .Values.domain }}
             tls:
@@ -96,7 +100,7 @@ releases:
             storage:
               volumeClaimTemplate:
                 spec:
-                  storageClassName: gp3
+                  storageClassName: {{ .Values.storage.className | default "gp3" }}
                   accessModes:
                     - ReadWriteOnce
                   resources:
@@ -114,7 +118,9 @@ releases:
         kubeStateMetrics:
           enabled: true
 
+  #-----------------------------------------------------------------------------
   # Loki - Log Aggregation
+  #-----------------------------------------------------------------------------
   - name: loki
     namespace: observability
     chart: grafana/loki
@@ -122,7 +128,7 @@ releases:
     labels:
       layer: observability
       component: loki
-    condition: observability.enabled
+    condition: components.observability
     timeout: 600
     wait: true
     values:
@@ -143,13 +149,13 @@ releases:
                   prefix: index_
                   period: 24h
           limits_config:
-            retention_period: {{ mul .Values.loki.retentionDays 24 }}h
+            retention_period: {{ mul (.Values.loki.retentionDays | default 15) 24 }}h
         singleBinary:
           replicas: 1
           persistence:
             enabled: true
-            storageClass: gp3
-            size: 20Gi
+            storageClass: {{ .Values.storage.className | default "gp3" }}
+            size: {{ .Values.loki.storageSize | default "20Gi" }}
           resources:
             requests:
               cpu: 100m
@@ -177,7 +183,9 @@ releases:
           lokiCanary:
             enabled: false
 
+  #-----------------------------------------------------------------------------
   # Promtail - Log Collector
+  #-----------------------------------------------------------------------------
   - name: promtail
     namespace: observability
     chart: grafana/promtail
@@ -185,7 +193,7 @@ releases:
     labels:
       layer: observability
       component: promtail
-    condition: observability.enabled
+    condition: components.observability
     values:
       - config:
           clients:

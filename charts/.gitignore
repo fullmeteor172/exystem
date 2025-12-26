@@ -1,10 +1,10 @@
-# Helm build artifacts
-charts/
-*.tgz
+# Secrets - NEVER commit actual secrets
+environments/*/secrets.yaml
+!environments/*/secrets.yaml.example
 
-# Secrets (except examples)
-secrets/*.yaml
-!secrets/*.example.yaml
+# Helm build artifacts
+*.tgz
+Chart.lock
 
 # Helmfile state
 .helmfile/
