@@ -1,0 +1,46 @@
+################################################################################
+# Production Environment Values
+################################################################################
+
+#-------------------------------------------------------------------------------
+# Cluster Identity
+#-------------------------------------------------------------------------------
+clusterName: "exystem-prod"
+domain: "example.com"           # CHANGE: Your production domain
+
+#-------------------------------------------------------------------------------
+# Component Toggles (override common)
+#-------------------------------------------------------------------------------
+components:
+  argocd: true                  # Enable GitOps in production
+
+#-------------------------------------------------------------------------------
+# Resource Configurations (full resources for production)
+#-------------------------------------------------------------------------------
+
+traefik:
+  replicas: 3                   # HA configuration
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 2000m
+      memory: 1Gi
+
+prometheus:
+  retentionDays: 30
+  storageSize: "100Gi"
+
+grafana:
+  storageSize: "20Gi"
+
+loki:
+  retentionDays: 30
+  storageSize: "50Gi"
+
+#-------------------------------------------------------------------------------
+# Security Settings
+#-------------------------------------------------------------------------------
+argocd:
+  insecure: true                # Behind Traefik TLS termination is OK

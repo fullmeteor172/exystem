@@ -1,266 +1,319 @@
 # Kubernetes Workloads (Helmfile)
 
-This directory contains Helmfile configuration for deploying Kubernetes workloads on top of cloud infrastructure.
+Deploy Kubernetes workloads across multiple environments using Helmfile.
 
-## Architecture
+## Directory Structure
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Helmfile Layers                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  50-applications: User Applications (via ArgoCD)           │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                              ▲                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  40-gitops: ArgoCD                                          │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                              ▲                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  30-observability: Prometheus, Grafana, Loki, Promtail     │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                              ▲                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  20-security: Cert-Manager, External-DNS                    │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                              ▲                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  10-networking: Traefik Ingress                             │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                              ▲                                   │
-│  ┌────────────────────────────────────────────────────────────┐ │
-│  │  00-core: Reloader (ConfigMap/Secret reload)                │ │
-│  └────────────────────────────────────────────────────────────┘ │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+charts/
+├── helmfile.yaml              # Main orchestrator
+├── helmfile.d/                # Layered release definitions
+│   ├── 00-core.yaml           # Reloader
+│   ├── 10-networking.yaml     # Traefik ingress
+│   ├── 20-security.yaml       # Cert-manager, External-DNS
+│   ├── 30-observability.yaml  # Prometheus, Grafana, Loki
+│   ├── 40-gitops.yaml         # ArgoCD
+│   └── 50-apps.yaml           # Your applications
+│
+├── environments/              # Environment configurations
+│   ├── common/
+│   │   └── values.yaml        # Shared values (Cloudflare IPs, defaults)
+│   ├── dev/
+│   │   ├── values.yaml        # Dev-specific values
+│   │   └── secrets.yaml       # Dev secrets (gitignored)
+│   ├── staging/
+│   │   ├── values.yaml
+│   │   └── secrets.yaml
+│   └── prod/
+│       ├── values.yaml
+│       └── secrets.yaml
+│
+├── apps/                      # Custom application charts
+│   └── example/               # Example app template
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/
+│
+└── manifests/                 # Raw K8s manifests
+    └── cluster-issuer.yaml
 ```
 
-## Usage
+## Quick Start
 
-### Prerequisites
+### 1. Prerequisites
 
 - kubectl configured for your cluster
 - Helm >= 3.x
 - Helmfile >= 0.150.0
-- SOPS (optional, for encrypted secrets)
 
-### Deploy All Workloads
+### 2. Configure Your Environment
 
 ```bash
-# Update repositories
+# Copy secrets template
+cp environments/dev/secrets.yaml.example environments/dev/secrets.yaml
+
+# Edit with your values
+vim environments/dev/secrets.yaml
+```
+
+Required secrets:
+```yaml
+cloudflare:
+  apiToken: "your-cloudflare-api-token"
+  zoneId: "your-zone-id"
+
+acme:
+  email: "admin@yourdomain.com"
+```
+
+### 3. Update Domain
+
+Edit `environments/dev/values.yaml`:
+```yaml
+clusterName: "my-cluster-dev"
+domain: "dev.yourdomain.com"
+```
+
+### 4. Deploy
+
+```bash
+cd charts
+
+# Add helm repos
 helmfile repos
 
 # Preview changes
-helmfile diff
+helmfile -e dev diff
 
 # Deploy
-helmfile sync
-```
-
-### Deploy to Specific Environment
-
-```bash
-# Development
 helmfile -e dev sync
-
-# Staging
-helmfile -e staging sync
-
-# Production
-helmfile -e prod sync
 ```
 
-### Deploy Specific Layers
+### 5. Create Required Secrets
 
 ```bash
-# Only networking layer
-helmfile -l layer=networking sync
-
-# Only observability
-helmfile -l layer=observability sync
-
-# Only security
-helmfile -l layer=security sync
-```
-
-### Destroy All
-
-```bash
-helmfile destroy
-```
-
-## Configuration
-
-### Values Files
-
-| File | Description |
-|------|-------------|
-| `values/common.yaml` | Shared settings across environments |
-| `values/dev.yaml` | Development environment |
-| `values/staging.yaml` | Staging environment |
-| `values/prod.yaml` | Production environment |
-| `values/traefik.yaml` | Traefik base configuration |
-
-### Secrets
-
-Secrets are stored in `secrets/<env>.yaml` and are gitignored by default.
-
-```bash
-# Copy the example
-cp secrets/dev.yaml.example secrets/dev.yaml
-
-# Edit with your secrets
-vim secrets/dev.yaml
-```
-
-For production, consider using:
-- **SOPS**: Encrypted secrets in git
-- **External Secrets Operator**: Secrets from AWS/GCP/Vault
-- **Sealed Secrets**: Encrypted secrets for GitOps
-
-## Releases
-
-### Core (00-core.yaml)
-
-| Release | Chart | Description |
-|---------|-------|-------------|
-| reloader | stakater/reloader | Auto-restart pods on config changes |
-
-### Networking (10-networking.yaml)
-
-| Release | Chart | Description |
-|---------|-------|-------------|
-| traefik | traefik/traefik | Ingress controller with NLB |
-
-### Security (20-security.yaml)
-
-| Release | Chart | Description |
-|---------|-------|-------------|
-| cert-manager | jetstack/cert-manager | TLS certificate automation |
-| external-dns | kubernetes-sigs/external-dns | DNS record management |
-
-### Observability (30-observability.yaml)
-
-| Release | Chart | Description |
-|---------|-------|-------------|
-| prometheus | prometheus-community/kube-prometheus-stack | Monitoring stack |
-| loki | grafana/loki | Log aggregation |
-| promtail | grafana/promtail | Log collection |
-
-### GitOps (40-gitops.yaml)
-
-| Release | Chart | Description |
-|---------|-------|-------------|
-| argocd | argo/argo-cd | GitOps CD platform |
-
-## Environment Variables
-
-Each environment can configure:
-
-```yaml
-# Cluster identity
-clusterName: "exystem-dev"
-domain: "dev.example.com"
-
-# Feature flags
-observability:
-  enabled: true
-
-externalDns:
-  enabled: true
-
-argocd:
-  enabled: false
-
-# Component settings
-traefik:
-  replicas: 2
-
-prometheus:
-  retentionDays: 15
-  storageSize: "50Gi"
-
-loki:
-  retentionDays: 30
-```
-
-## Secrets Reference
-
-Required secrets (in `secrets/<env>.yaml`):
-
-```yaml
-# Cloudflare (for cert-manager and external-dns)
-cloudflareApiToken: "..."
-cloudflareZoneId: "..."
-
-# ACME (Let's Encrypt)
-acme:
-  email: "admin@example.com"
-
-# Optional
-grafana:
-  adminPassword: ""  # Auto-generated if empty
-```
-
-## Post-Deployment Setup
-
-### Create Cloudflare Secret
-
-```bash
+# Cloudflare token for cert-manager
 kubectl create secret generic cloudflare-api-token \
   -n cert-manager \
   --from-literal=api-token=<your-token>
 
+# Cloudflare token for external-dns
 kubectl create secret generic cloudflare-api-token \
   -n external-dns \
   --from-literal=api-token=<your-token>
 ```
 
-### Create Wildcard Certificate
+## Commands
 
 ```bash
-kubectl apply -f manifests/wildcard-certificate.yaml
+# Deploy to environment
+helmfile -e dev sync
+helmfile -e staging sync
+helmfile -e prod sync
+
+# Preview changes
+helmfile -e dev diff
+
+# Deploy specific component
+helmfile -e dev -l component=traefik sync
+helmfile -e dev -l component=prometheus sync
+
+# Deploy specific layer
+helmfile -e dev -l layer=observability sync
+
+# List releases
+helmfile -e dev list
+
+# Destroy all
+helmfile -e dev destroy
 ```
 
-### Verify Deployment
+## Component Toggles
 
+Enable/disable components in `environments/<env>/values.yaml`:
+
+```yaml
+components:
+  reloader: true        # Auto-restart on config changes
+  traefik: true         # Ingress controller
+  certManager: true     # TLS certificates
+  externalDns: true     # DNS automation
+  observability: true   # Prometheus/Grafana/Loki
+  argocd: false         # GitOps (disabled in dev by default)
+```
+
+## Environment Configuration
+
+### Common Values (`environments/common/values.yaml`)
+
+Shared across all environments:
+- Cloudflare trusted IP ranges
+- Default resource configurations
+- Storage class settings
+
+### Environment-Specific Values
+
+| Setting | Dev | Staging | Prod |
+|---------|-----|---------|------|
+| Traefik replicas | 1 | 2 | 3 |
+| Prometheus retention | 7d | 15d | 30d |
+| Prometheus storage | 20Gi | 30Gi | 100Gi |
+| ArgoCD enabled | No | Yes | Yes |
+
+## Adding Custom Applications
+
+### Option 1: Add to 50-apps.yaml
+
+Edit `helmfile.d/50-apps.yaml`:
+
+```yaml
+releases:
+  - name: my-app
+    namespace: my-app
+    createNamespace: true
+    chart: ../apps/my-app
+    labels:
+      layer: apps
+      component: my-app
+    values:
+      - image:
+          tag: {{ .Values.apps.myApp.imageTag | default "latest" }}
+```
+
+Add values in `environments/<env>/values.yaml`:
+```yaml
+apps:
+  myApp:
+    imageTag: "v1.0.0"
+```
+
+### Option 2: Use ArgoCD
+
+Deploy apps via ArgoCD ApplicationSets for GitOps workflows.
+
+## Secrets Management
+
+### Development
+
+Use plaintext secrets (gitignored):
 ```bash
-# Check all pods
-kubectl get pods -A
+cp environments/dev/secrets.yaml.example environments/dev/secrets.yaml
+```
 
-# Check ingresses
-kubectl get ingress -A
+### Production
 
-# Check certificates
-kubectl get certificates -A
+Use SOPS encryption:
+```bash
+# Install sops
+brew install sops
+
+# Create .sops.yaml in repo root
+cat > .sops.yaml << EOF
+creation_rules:
+  - path_regex: environments/.*/secrets\.yaml$
+    kms: arn:aws:kms:us-east-1:123456789:key/your-key-id
+EOF
+
+# Encrypt secrets
+sops -e environments/prod/secrets.yaml.example > environments/prod/secrets.yaml
+```
+
+## Component Details
+
+### Core (00-core)
+| Release | Version | Description |
+|---------|---------|-------------|
+| reloader | 1.2.0 | Auto-restarts pods on ConfigMap/Secret changes |
+
+### Networking (10-networking)
+| Release | Version | Description |
+|---------|---------|-------------|
+| traefik | 32.1.1 | Ingress controller with AWS NLB |
+
+### Security (20-security)
+| Release | Version | Description |
+|---------|---------|-------------|
+| cert-manager | v1.16.2 | TLS certificate automation |
+| external-dns | 1.15.0 | Cloudflare DNS record management |
+
+### Observability (30-observability)
+| Release | Version | Description |
+|---------|---------|-------------|
+| prometheus | 65.8.1 | Monitoring with kube-prometheus-stack |
+| loki | 6.22.0 | Log aggregation |
+| promtail | 6.16.6 | Log collection |
+
+### GitOps (40-gitops)
+| Release | Version | Description |
+|---------|---------|-------------|
+| argocd | 7.7.5 | GitOps continuous deployment |
+
+## Accessing Services
+
+### Grafana
+```bash
+# URL: https://grafana.<your-domain>
+# Get admin password (if auto-generated):
+kubectl get secret -n observability prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 -d
+```
+
+### ArgoCD
+```bash
+# URL: https://argocd.<your-domain>
+# Get initial admin password:
+kubectl get secret -n argocd argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
 ```
 
 ## Troubleshooting
 
-### Traefik not getting external IP
-
+### Check pod status
 ```bash
-kubectl get svc -n traefik
-kubectl describe svc traefik -n traefik
+kubectl get pods -A | grep -v Running
 ```
 
-### Certificates not issuing
-
+### Traefik issues
 ```bash
-kubectl describe certificate wildcard-cert -n traefik
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik
+kubectl get svc -n traefik
+```
+
+### Certificate issues
+```bash
+kubectl get certificates -A
+kubectl describe certificate -n traefik wildcard-cert
 kubectl logs -n cert-manager -l app=cert-manager
 ```
 
-### External-DNS not creating records
-
+### DNS issues
 ```bash
 kubectl logs -n external-dns -l app.kubernetes.io/name=external-dns
 ```
 
-### Prometheus not scraping
-
+### Prometheus issues
 ```bash
 kubectl port-forward -n observability svc/prometheus-kube-prometheus-prometheus 9090:9090
-# Access http://localhost:9090/targets
+# Visit http://localhost:9090/targets
+```
+
+## Upgrading
+
+```bash
+# Update helm repos
+helmfile repos
+
+# Preview changes
+helmfile -e <env> diff
+
+# Apply updates
+helmfile -e <env> sync
+```
+
+## Cleanup
+
+```bash
+# Destroy all releases in an environment
+helmfile -e dev destroy
+
+# Remove specific component
+helmfile -e dev -l component=argocd destroy
 ```

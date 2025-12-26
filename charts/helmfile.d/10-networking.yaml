@@ -3,7 +3,9 @@
 ################################################################################
 
 releases:
-  # Traefik Ingress Controller
+  #-----------------------------------------------------------------------------
+  # Traefik - Ingress Controller
+  #-----------------------------------------------------------------------------
   - name: traefik
     namespace: traefik
     createNamespace: true
@@ -11,9 +13,9 @@ releases:
     version: "32.1.1"
     labels:
       layer: networking
-      component: ingress
+      component: traefik
+    condition: components.traefik
     values:
-      - ../values/traefik.yaml
       - deployment:
           replicas: {{ .Values.traefik.replicas | default 2 }}
         service:
@@ -46,11 +48,11 @@ releases:
               enabled: true
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: {{ .Values.traefik.resources.requests.cpu | default "100m" }}
+            memory: {{ .Values.traefik.resources.requests.memory | default "128Mi" }}
           limits:
-            cpu: 1000m
-            memory: 512Mi
+            cpu: {{ .Values.traefik.resources.limits.cpu | default "1000m" }}
+            memory: {{ .Values.traefik.resources.limits.memory | default "512Mi" }}
         affinity:
           podAntiAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
@@ -70,5 +72,4 @@ releases:
             enabled: true
         globalArguments: []
         additionalArguments:
-          - "--serverstransport.insecureskipverify=true"
           - "--providers.kubernetesingress.ingressclass=traefik"
