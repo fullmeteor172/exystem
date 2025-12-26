@@ -1,6 +1,29 @@
-# Default values for example application
-# Override these in environments/<env>/values.yaml under apps.example.*
+################################################################################
+# Example Application Values
+#
+# This file contains default values. Override in environments/<env>/values.yaml:
+#
+#   apps:
+#     example:
+#       image:
+#         tag: "v1.2.3"
+#       ingress:
+#         enabled: true
+#         host: "example.dev.yourdomain.com"
+#
+# And for secrets in environments/<env>/secrets.yaml:
+#
+#   apps:
+#     example:
+#       database:
+#         password: "secret-password"
+#       redis:
+#         password: "redis-password"
+################################################################################
 
+#-------------------------------------------------------------------------------
+# Application
+#-------------------------------------------------------------------------------
 replicaCount: 1
 
 image:
@@ -8,10 +31,59 @@ image:
   tag: "alpine"
   pullPolicy: IfNotPresent
 
+#-------------------------------------------------------------------------------
+# Service
+#-------------------------------------------------------------------------------
 service:
   type: ClusterIP
   port: 80
 
+#-------------------------------------------------------------------------------
+# Ingress - Expose via Traefik
+#-------------------------------------------------------------------------------
+ingress:
+  enabled: false
+  host: ""                    # e.g., "example.dev.yourdomain.com"
+  tlsSecretName: wildcard-tls # Uses cluster wildcard cert
+
+#-------------------------------------------------------------------------------
+# Persistent Storage (EFS/NFS)
+#-------------------------------------------------------------------------------
+persistence:
+  enabled: false
+  storageClassName: "efs-sc"  # EFS storage class from Terraform
+  size: "5Gi"
+  mountPath: "/data"
+  accessMode: ReadWriteMany   # EFS supports RWX for shared access
+
+#-------------------------------------------------------------------------------
+# Database Configuration (PostgreSQL from Terraform RDS)
+#
+# These get injected as environment variables.
+# Passwords should be in secrets.yaml, not here.
+#-------------------------------------------------------------------------------
+database:
+  enabled: false
+  host: ""                    # e.g., "mydb.xxxxx.us-east-1.rds.amazonaws.com"
+  port: "5432"
+  name: ""                    # e.g., "myapp"
+  username: ""                # e.g., "myapp"
+  password: ""                # FROM SECRETS - never commit this
+  sslMode: "require"
+
+#-------------------------------------------------------------------------------
+# Redis Configuration (ElastiCache from Terraform)
+#-------------------------------------------------------------------------------
+redis:
+  enabled: false
+  host: ""                    # e.g., "mycluster.xxxxx.cache.amazonaws.com"
+  port: "6379"
+  password: ""                # FROM SECRETS if auth enabled
+  tls: true
+
+#-------------------------------------------------------------------------------
+# Resources
+#-------------------------------------------------------------------------------
 resources:
   requests:
     cpu: 50m
@@ -20,6 +92,10 @@ resources:
     cpu: 200m
     memory: 128Mi
 
-ingress:
-  enabled: false
-  # host: example.yourdomain.com
+#-------------------------------------------------------------------------------
+# Health Checks
+#-------------------------------------------------------------------------------
+healthCheck:
+  path: "/"
+  initialDelaySeconds: 5
+  periodSeconds: 10

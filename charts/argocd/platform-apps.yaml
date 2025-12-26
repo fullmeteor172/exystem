@@ -1,0 +1,91 @@
+################################################################################
+# ArgoCD Application - Platform Charts
+#
+# This Application tells ArgoCD to watch the charts/ directory in your repo
+# and automatically sync changes.
+#
+# Apply after ArgoCD is deployed:
+#   kubectl apply -f argocd/platform-apps.yaml
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-apps
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    # CHANGE: Your GitHub repository URL
+    repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+    targetRevision: main
+    path: charts
+
+    # Use Helmfile plugin to render charts
+    plugin:
+      name: helmfile
+      env:
+        - name: HELMFILE_ENV
+          value: dev  # CHANGE: dev, staging, or prod
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true        # Remove resources not in git
+      selfHeal: true     # Revert manual changes
+    syncOptions:
+      - CreateNamespace=true
+
+---
+################################################################################
+# ArgoCD ApplicationSet - Deploy Multiple Apps from apps/ Directory
+#
+# This ApplicationSet discovers all apps in the apps/ directory and creates
+# an ArgoCD Application for each one.
+################################################################################
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: user-apps
+  namespace: argocd
+spec:
+  generators:
+    # Git generator discovers directories in apps/
+    - git:
+        repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+        revision: main
+        directories:
+          - path: charts/apps/*
+            exclude: false
+
+  template:
+    metadata:
+      name: '{{path.basename}}'
+      namespace: argocd
+    spec:
+      project: default
+
+      source:
+        repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+        targetRevision: main
+        path: '{{path}}'
+        helm:
+          # Values from the environment directory
+          valueFiles:
+            - ../../environments/dev/values.yaml  # CHANGE: per environment
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true

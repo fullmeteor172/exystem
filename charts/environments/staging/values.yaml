@@ -37,3 +37,30 @@ loki:
 #-------------------------------------------------------------------------------
 argocd:
   insecure: true                # Behind Traefik TLS termination
+
+#-------------------------------------------------------------------------------
+# User Applications
+#-------------------------------------------------------------------------------
+apps:
+  example:
+    enabled: false
+    replicas: 2
+    image:
+      repository: nginx
+      tag: "alpine"
+    ingress:
+      enabled: true
+    persistence:
+      enabled: false
+      size: "5Gi"
+    database:
+      enabled: false
+    redis:
+      enabled: false
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "256Mi"

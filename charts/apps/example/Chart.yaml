@@ -1,6 +1,13 @@
 apiVersion: v2
-name: example
-description: Example application chart - copy and modify for your apps
+name: example-app
+description: |
+  Example application chart demonstrating:
+  - Ingress with TLS
+  - EFS/NFS persistent storage
+  - Database connections (PostgreSQL, Redis)
+  - Environment-based configuration
+
+  Copy this chart to apps/<your-app>/ and customize.
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
