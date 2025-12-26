@@ -37,3 +37,41 @@ loki:
 #-------------------------------------------------------------------------------
 argocd:
   insecure: true                # OK for dev behind Traefik TLS termination
+
+#-------------------------------------------------------------------------------
+# User Applications
+#
+# Configure your apps here. Secrets go in secrets.yaml.
+#-------------------------------------------------------------------------------
+apps:
+  # Example application - enable to test the deployment pattern
+  example:
+    enabled: false              # Set true to deploy
+    replicas: 1
+    image:
+      repository: nginx
+      tag: "alpine"
+    ingress:
+      enabled: true
+      host: ""                  # Leave empty to use: example.<domain>
+    persistence:
+      enabled: false            # Enable to test EFS mounting
+      size: "1Gi"
+    database:
+      enabled: false
+      # Connection info comes from Terraform outputs
+      # host: "mydb.xxxxx.us-east-1.rds.amazonaws.com"
+      # port: "5432"
+      # name: "myapp_dev"
+      # username: "myapp"
+    redis:
+      enabled: false
+      # host: "mycluster.xxxxx.cache.amazonaws.com"
+      # port: "6379"
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
