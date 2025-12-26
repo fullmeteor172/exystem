@@ -1,0 +1,34 @@
+################################################################################
+# Development Environment Values
+################################################################################
+
+# Cluster identification
+clusterName: "exystem-dev"
+domain: "dev.example.com"
+
+# Traefik settings
+traefik:
+  replicas: 1
+
+# Prometheus - smaller retention for dev
+prometheus:
+  retentionDays: 7
+  storageSize: "20Gi"
+
+# Loki - smaller retention for dev
+loki:
+  retentionDays: 7
+
+# Grafana
+grafana:
+  adminPassword: ""  # Will be auto-generated if empty
+
+# Feature flags
+observability:
+  enabled: true
+
+externalDns:
+  enabled: true
+
+argocd:
+  enabled: false

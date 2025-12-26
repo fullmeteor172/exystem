@@ -1,0 +1,30 @@
+################################################################################
+# Traefik Base Values
+################################################################################
+
+# These are base values that get merged with environment-specific settings
+# Override in environment files (dev.yaml, staging.yaml, prod.yaml)
+
+deployment:
+  replicas: 2
+
+service:
+  type: LoadBalancer
+
+ingressRoute:
+  dashboard:
+    enabled: false
+
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
+    publishedService:
+      enabled: true
+
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true

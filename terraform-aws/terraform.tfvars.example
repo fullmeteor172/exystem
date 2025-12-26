@@ -1,0 +1,89 @@
+################################################################################
+# General Configuration
+################################################################################
+
+project_name = "exystem"
+environment  = "dev"
+aws_region   = "us-west-2"
+
+# Optional: Assume role for cross-account deployments
+# assume_role_arn = "arn:aws:iam::123456789012:role/TerraformRole"
+
+tags = {
+  Owner = "platform-team"
+  Team  = "infrastructure"
+}
+
+################################################################################
+# Networking Configuration
+################################################################################
+
+vpc_cidr           = "10.0.0.0/16"
+availability_zones = []  # Empty = use first 3 AZs in region
+enable_nat_gateway = true
+single_nat_gateway = true  # Set to false for HA NAT per AZ
+
+################################################################################
+# EKS Cluster Configuration
+################################################################################
+
+cluster_version                          = "1.31"
+cluster_endpoint_public_access           = true
+cluster_endpoint_private_access          = true
+enable_cluster_creator_admin_permissions = true
+
+################################################################################
+# Karpenter Configuration
+################################################################################
+
+karpenter_namespace           = "karpenter"
+karpenter_node_instance_types = ["t3.medium", "t3.large", "t3.xlarge"]
+karpenter_node_capacity_type  = ["spot", "on-demand"]
+
+# Initial managed node group (where Karpenter runs)
+karpenter_initial_instance_type = "t3.medium"
+karpenter_initial_desired_size  = 3
+karpenter_initial_min_size      = 2
+karpenter_initial_max_size      = 5
+
+################################################################################
+# RDS PostgreSQL (Optional)
+################################################################################
+
+enable_rds              = false
+rds_engine_version      = "17.2"
+rds_instance_class      = "db.t4g.micro"
+rds_allocated_storage   = 20
+rds_database_name       = "app"
+rds_master_username     = "postgres"
+rds_backup_retention_period = 7
+rds_multi_az            = false
+rds_deletion_protection = true  # Set false for dev
+
+################################################################################
+# ElastiCache Redis (Optional)
+################################################################################
+
+enable_elasticache             = false
+elasticache_node_type          = "cache.t4g.micro"
+elasticache_num_cache_nodes    = 1
+elasticache_engine_version     = "7.1"
+elasticache_parameter_group_family = "redis7"
+elasticache_automatic_failover = false  # Requires 2+ nodes
+
+################################################################################
+# EFS Shared Storage (Optional)
+################################################################################
+
+enable_efs         = false
+efs_performance_mode = "generalPurpose"
+efs_throughput_mode  = "bursting"
+
+################################################################################
+# Bastion Host (Optional)
+################################################################################
+
+enable_bastion          = false
+bastion_instance_type   = "t3.micro"
+bastion_allowed_ssh_cidrs = ["0.0.0.0/0"]  # Restrict in production!
+bastion_efs_mount_path  = "/mnt/efs"

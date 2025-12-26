@@ -1,153 +1,269 @@
-# Exystem
+# Exystem - Cloud-Native Infrastructure Platform
 
-Production-ready EKS clusters with Karpenter autoscaling, Traefik ingress, and automated SSL.
-
-## What You Get
-
-**Core Infrastructure:**
-- VPC with public/private subnets across 3 availability zones
-- EKS cluster with Karpenter for cost-efficient node autoscaling
-- Traefik ingress controller with NLB
-- Cert-manager with Let's Encrypt (DNS01 via Cloudflare)
-- EBS CSI driver with gp3 storage classes
-
-**Optional Components:**
-- PostgreSQL (RDS)
-- Redis (ElastiCache)
-- Shared storage (EFS)
-- Bastion host for debugging
-- Observability stack (Prometheus, Grafana, Loki)
-
-## Quick Start
-
-```bash
-cd terraform
-
-# Configure
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars with your values
-
-# Deploy
-terraform init
-terraform apply
-
-# Connect
-eval "$(terraform output -raw configure_kubectl)"
-kubectl get nodes
-```
-
-## Configuration
-
-Required variables in `terraform.tfvars`:
-
-```hcl
-project_name = "myapp"
-environment  = "dev"
-domain_name  = "example.com"
-acme_email   = "admin@example.com"
-
-# For automatic DNS and SSL certificates
-cloudflare_api_token = "..."
-cloudflare_zone_id   = "..."
-```
-
-Enable optional components:
-
-```hcl
-enable_observability = true   # Prometheus/Grafana/Loki
-enable_rds           = true   # PostgreSQL
-enable_elasticache   = true   # Redis
-enable_efs           = true   # Shared storage
-enable_bastion       = true   # Debug host
-```
-
-DNS automation is enabled by default. To manage DNS records manually:
-
-```hcl
-enable_automatic_dns = false
-```
-
-## Initial Node Configuration
-
-Karpenter runs on a managed node group. Defaults: 3x t3.medium (6 vCPU, 12GB RAM).
-
-```hcl
-karpenter_initial_instance_type = "t3.medium"
-karpenter_initial_desired_size  = 3
-karpenter_initial_min_size      = 2
-karpenter_initial_max_size      = 5
-```
-
-## Multiple Clusters
-
-Each cluster has its own state file. Use `switch.sh` to manage:
-
-```bash
-./switch.sh myapp staging
-# Update terraform.tfvars to match
-terraform apply
-```
+A production-ready infrastructure platform with clean separation between cloud provider infrastructure and Kubernetes workloads.
 
 ## Architecture
 
 ```
-Internet
-    |
-Cloudflare (DNS + optional proxy)
-    |
-AWS NLB (internet-facing)
-    |
-Traefik Ingress (pods in private subnets)
-    |
-Application pods (Karpenter-managed nodes)
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              EXYSTEM PLATFORM                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                     LAYER 3: GITOPS (ArgoCD)                            │ │
+│  │  Continuous deployment, application management, GitOps workflows        │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                    ▲                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                 LAYER 2: WORKLOADS (Helmfile)                           │ │
+│  │  Traefik │ Cert-Manager │ External-DNS │ Prometheus │ Grafana │ Loki   │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                    ▲                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                 LAYER 1: INFRASTRUCTURE (Terraform)                      │ │
+│  │  VPC │ EKS │ Karpenter │ EBS CSI │ RDS │ ElastiCache │ EFS │ Bastion   │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                    ▲                                         │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │                        AWS CLOUD PROVIDER                                │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Node Provisioning:**
-1. Initial managed node group runs Karpenter controller
-2. Karpenter provisions additional nodes based on pod requirements
-3. Consolidation removes underutilized nodes after 30 minutes
-4. Spot instances preferred, falls back to on-demand
+## Directory Structure
 
-**Certificate Flow:**
-1. Cert-manager requests wildcard certificate from Let's Encrypt
-2. DNS01 challenge completed via Cloudflare API
-3. Traefik serves certificate for all subdomains
+```
+exystem/
+├── terraform-aws/              # AWS-specific infrastructure
+│   ├── modules/
+│   │   ├── networking/         # VPC, subnets, NAT
+│   │   ├── eks/               # EKS cluster, IAM, OIDC
+│   │   ├── karpenter/         # Node autoscaling
+│   │   ├── bootstrap/         # CSI drivers, storage classes
+│   │   ├── rds/               # PostgreSQL database
+│   │   ├── elasticache/       # Redis cache
+│   │   ├── efs/               # Shared file storage
+│   │   └── bastion/           # Debug access host
+│   ├── main.tf
+│   ├── variables.tf
+│   ├── outputs.tf
+│   └── terraform.tfvars.example
+│
+├── charts/                     # Provider-agnostic workloads
+│   ├── helmfile.yaml          # Main orchestrator
+│   ├── helmfile.d/            # Layered deployments
+│   │   ├── 00-core.yaml       # Essential components
+│   │   ├── 10-networking.yaml # Traefik ingress
+│   │   ├── 20-security.yaml   # Cert-manager, External-DNS
+│   │   ├── 30-observability.yaml # Prometheus, Grafana, Loki
+│   │   ├── 40-gitops.yaml     # ArgoCD
+│   │   └── 50-applications.yaml # User applications
+│   ├── values/                # Environment configurations
+│   │   ├── common.yaml
+│   │   ├── dev.yaml
+│   │   ├── staging.yaml
+│   │   └── prod.yaml
+│   ├── secrets/               # Encrypted secrets (gitignored)
+│   └── manifests/             # Raw Kubernetes manifests
+│
+└── scripts/                   # Automation scripts
+    └── deploy.sh              # Unified deployment
+```
 
-## Observability
+## Quick Start
 
-When `enable_observability = true`:
+### Prerequisites
 
-- **Grafana**: `https://grafana.{domain_name}` (admin password in Terraform output)
-- **Prometheus**: Collects cluster metrics, 15-day retention
-- **Loki**: Aggregates logs from all pods, 30-day retention
-- **Promtail**: DaemonSet shipping logs to Loki
+- AWS CLI configured with appropriate credentials
+- Terraform >= 1.6.0
+- kubectl
+- Helm >= 3.x
+- Helmfile >= 0.150.0
 
-Pre-configured dashboards for Kubernetes cluster and node metrics.
-
-## Cleanup
+### 1. Deploy Infrastructure
 
 ```bash
-./cleanup.sh      # Interactive
-./cleanup.sh -y   # Non-interactive
+cd terraform-aws
+
+# Copy and configure variables
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your settings
+
+# Initialize and deploy
+terraform init
+terraform plan
+terraform apply
+
+# Configure kubectl
+eval $(terraform output -raw configure_kubectl)
 ```
+
+### 2. Deploy Workloads
+
+```bash
+cd charts
+
+# Copy and configure secrets
+cp secrets/dev.yaml.example secrets/dev.yaml
+# Edit secrets/dev.yaml with your credentials
+
+# Deploy all workloads
+helmfile sync
+
+# Or deploy to a specific environment
+helmfile -e staging sync
+```
+
+### 3. Unified Deployment
+
+For a one-command deployment:
+
+```bash
+./scripts/deploy.sh --env dev
+```
+
+## Design Principles
+
+### Clean Separation
+
+- **Terraform (Layer 1)**: Cloud provider infrastructure that changes infrequently
+- **Helmfile (Layer 2)**: Kubernetes workloads that change regularly
+- **ArgoCD (Layer 3)**: Continuous deployment and GitOps
+
+### Multi-Cloud Ready
+
+The `charts/` directory is provider-agnostic. To add another cloud provider:
+
+1. Create `terraform-gcp/` or `terraform-azure/`
+2. Implement the same module interface
+3. Reuse `charts/` unchanged
+
+### GitOps Friendly
+
+- ArgoCD can watch `charts/` for automated deployments
+- All configuration is declarative and version-controlled
+- Secrets are encrypted or externalized
+
+## Components
+
+### Infrastructure (Terraform)
+
+| Component | Description |
+|-----------|-------------|
+| Networking | VPC, public/private subnets, NAT Gateway |
+| EKS | Kubernetes cluster with OIDC |
+| Karpenter | Intelligent node autoscaling |
+| Bootstrap | EBS CSI driver, storage classes, metrics-server |
+| RDS | PostgreSQL database (optional) |
+| ElastiCache | Redis cache (optional) |
+| EFS | Shared file system (optional) |
+| Bastion | Debug/access host (optional) |
+
+### Workloads (Helmfile)
+
+| Component | Description |
+|-----------|-------------|
+| Traefik | Ingress controller with AWS NLB |
+| Cert-Manager | TLS certificate automation |
+| External-DNS | Automatic DNS record management |
+| Prometheus | Metrics collection and alerting |
+| Grafana | Dashboards and visualization |
+| Loki | Log aggregation |
+| Promtail | Log collection |
+| ArgoCD | GitOps continuous deployment |
+
+## Environment Configuration
+
+### Terraform Variables
+
+Configure in `terraform-aws/terraform.tfvars`:
+
+```hcl
+project_name = "exystem"
+environment  = "dev"
+aws_region   = "us-west-2"
+
+# Feature flags
+enable_rds         = false
+enable_elasticache = false
+enable_efs         = false
+enable_bastion     = false
+```
+
+### Helmfile Values
+
+Configure in `charts/values/<env>.yaml`:
+
+```yaml
+clusterName: "exystem-dev"
+domain: "dev.example.com"
+
+observability:
+  enabled: true
+
+argocd:
+  enabled: false
+```
+
+## Operations
+
+### Switching Clusters
+
+```bash
+cd terraform-aws
+./switch.sh exystem staging
+```
+
+### Cleanup
+
+```bash
+cd terraform-aws
+./cleanup.sh
+```
+
+### Layer-specific Deployment
+
+```bash
+# Deploy only networking layer
+helmfile -l layer=networking sync
+
+# Deploy only observability
+helmfile -l layer=observability sync
+```
+
+## Access Points
+
+After deployment:
+
+| Service | URL |
+|---------|-----|
+| Grafana | `https://grafana.<domain>` |
+| ArgoCD | `https://argocd.<domain>` |
 
 ## Troubleshooting
 
-**Karpenter not scaling:**
+### Check cluster health
+
 ```bash
+kubectl get nodes
+kubectl get pods -A
+```
+
+### Check Karpenter
+
+```bash
+kubectl get nodepools,ec2nodeclasses
 kubectl logs -n karpenter -l app.kubernetes.io/name=karpenter
-kubectl describe nodepool default
 ```
 
-**Certificate issues:**
+### Check certificates
+
 ```bash
-kubectl describe certificate -n traefik wildcard-cert
-kubectl describe clusterissuer letsencrypt-prod
+kubectl get certificates -A
+kubectl get clusterissuers
 ```
 
-**Bastion access:**
-```bash
-eval "$(terraform output -raw bastion_ssm_command)"
-```
+## License
 
-See [terraform/README.md](./terraform/README.md) for detailed configuration reference.
+MIT

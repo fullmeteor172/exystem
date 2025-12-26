@@ -1,0 +1,18 @@
+# Helm build artifacts
+charts/
+*.tgz
+
+# Secrets (except examples)
+secrets/*.yaml
+!secrets/*.example.yaml
+
+# Helmfile state
+.helmfile/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
